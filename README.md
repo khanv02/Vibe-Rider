@@ -133,7 +133,7 @@ React + TypeScript
         ↕
 Tauri IPC
         ↕
-Rust commands and managed state
+Rust commands and managed states
         ↕
 Native dialog / local filesystem
 ```
