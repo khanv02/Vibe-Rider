@@ -10,7 +10,7 @@ use portable_pty::{
 use tauri::ipc::Channel;
 
 use super::shell::ResolvedShell;
-use super::{TerminalError, TerminalEvent, TerminalSession};
+use super::{TerminalError, TerminalEvent, TerminalPaneId, TerminalSession};
 
 pub(crate) const MAX_IN_FLIGHT_BYTES: usize = 512 * 1024;
 pub(crate) const MAX_INPUT_BYTES: usize = 16 * 1024;
@@ -182,9 +182,11 @@ impl OutputFlow {
 }
 
 impl RunningSession {
+    #[allow(clippy::too_many_arguments)]
     pub fn spawn(
         session_id: String,
         workspace_id: String,
+        pane_id: TerminalPaneId,
         owner_label: String,
         workspace_root: &Path,
         shell: ResolvedShell,
@@ -247,6 +249,7 @@ impl RunningSession {
 
         let reader_session_id = session_id.clone();
         let reader_workspace_id = workspace_id.clone();
+        let reader_pane_id = pane_id;
         let reader_channel = channel.clone();
         let reader_flow = Arc::clone(&output_flow);
         let reader_gate = Arc::clone(&output_gate);
@@ -262,6 +265,7 @@ impl RunningSession {
                     &mut reader,
                     &reader_session_id,
                     &reader_workspace_id,
+                    reader_pane_id,
                     &reader_channel,
                     &reader_flow,
                     &reader_killer_for_thread,
@@ -273,6 +277,7 @@ impl RunningSession {
                 let _ = reader_channel.send(TerminalEvent::Exited {
                     session_id: reader_session_id,
                     workspace_id: reader_workspace_id,
+                    pane_id: reader_pane_id,
                     exit_code: exit.code,
                     reason: exit.reason,
                 });
@@ -296,6 +301,7 @@ impl RunningSession {
             descriptor: TerminalSession {
                 session_id,
                 workspace_id,
+                pane_id,
                 shell: shell.kind,
                 pid,
                 state: TerminalSessionState::Running,
@@ -448,6 +454,12 @@ impl RunningSession {
             .map_err(|_| "PTY killer lock poisoned".to_owned())
             .and_then(|mut killer| killer.kill().map_err(|error| error.to_string()));
 
+        // Close PTY handles before joining the reader. On Windows a reader can
+        // remain blocked until the master handle is dropped, even after child
+        // termination has completed.
+        self.writer.take();
+        self.master.take();
+
         let waiter_result = self
             .waiter_thread
             .take()
@@ -457,9 +469,6 @@ impl RunningSession {
                     .map_err(|_| "process waiter panicked".to_owned())
             })
             .transpose();
-
-        self.writer.take();
-        self.master.take();
 
         let reader_result = self
             .reader_thread
@@ -507,6 +516,7 @@ fn read_output(
     reader: &mut dyn Read,
     session_id: &str,
     workspace_id: &str,
+    pane_id: TerminalPaneId,
     channel: &Channel<TerminalEvent>,
     flow: &OutputFlow,
     killer: &Arc<Mutex<Box<dyn ChildKiller + Send + Sync>>>,
@@ -523,6 +533,7 @@ fn read_output(
                 let event = TerminalEvent::Data {
                     session_id: session_id.to_owned(),
                     workspace_id: workspace_id.to_owned(),
+                    pane_id,
                     sequence,
                     data: buffer[..bytes_read].to_vec(),
                 };
@@ -539,6 +550,7 @@ fn read_output(
                 let _ = channel.send(TerminalEvent::Error {
                     session_id: session_id.to_owned(),
                     workspace_id: workspace_id.to_owned(),
+                    pane_id,
                     code: "STREAM_FAILED".to_owned(),
                     message: format!("PTY reader error: {error}"),
                 });
@@ -588,6 +600,7 @@ mod tests {
 
     use super::{shell_command, OutputFlow, RunningSession, MAX_IN_FLIGHT_BYTES};
     use crate::terminal::shell::{ResolvedShell, ShellKind};
+    use crate::terminal::TerminalPaneId;
 
     #[test]
     fn shell_command_uses_the_workspace_as_its_cwd() {
@@ -638,6 +651,7 @@ mod tests {
         let session = RunningSession::spawn(
             "terminal-test".to_owned(),
             "workspace-test".to_owned(),
+            TerminalPaneId::T1,
             "main".to_owned(),
             &root,
             shell,
@@ -662,18 +676,29 @@ mod tests {
             .expect("native PTY should accept input");
         let deadline = Instant::now() + Duration::from_secs(3);
         let mut saw_marker = false;
+        let mut last_acked = 0;
         while Instant::now() < deadline {
-            let output = events
+            let data_events = events
                 .lock()
                 .expect("event lock")
                 .iter()
                 .filter_map(|event| match event {
-                    TerminalEvent::Data { data, .. } => {
-                        Some(String::from_utf8_lossy(data).to_string())
+                    TerminalEvent::Data { sequence, data, .. } => {
+                        Some((*sequence, String::from_utf8_lossy(data).to_string()))
                     }
                     _ => None,
                 })
+                .collect::<Vec<_>>();
+            let output = data_events
+                .iter()
+                .map(|(_, data)| data.as_str())
                 .collect::<String>();
+            for (sequence, _) in data_events {
+                if sequence > last_acked {
+                    io.acknowledge(sequence).expect("test should ACK output");
+                    last_acked = sequence;
+                }
+            }
             if output.contains("__VIBE_RIDER_TERMINAL_TEST__") {
                 saw_marker = true;
                 break;
@@ -681,6 +706,7 @@ mod tests {
             std::thread::sleep(Duration::from_millis(20));
         }
         assert!(saw_marker, "PTY output should contain the command marker");
+        drop(io);
         session.close().expect("native PTY should close");
     }
 }

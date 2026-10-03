@@ -9,7 +9,8 @@ mod workspace;
 use filesystem::read_directory;
 use tauri::Manager;
 use terminal::{
-    terminal_ack, terminal_close, terminal_resize, terminal_spawn, terminal_write, TerminalManager,
+    terminal_ack, terminal_close, terminal_close_workspace, terminal_list, terminal_resize,
+    terminal_spawn, terminal_write, TerminalManager,
 };
 use workspace::{open_workspace, WorkspaceState};
 
@@ -40,6 +41,8 @@ pub fn run() {
             read_directory,
             terminal_spawn,
             terminal_close,
+            terminal_list,
+            terminal_close_workspace,
             terminal_write,
             terminal_resize,
             terminal_ack
@@ -50,7 +53,7 @@ pub fn run() {
     app.run(|app_handle, event| {
         if matches!(event, tauri::RunEvent::Exit) {
             let manager = app_handle.state::<TerminalManager>();
-            manager.close_active_for_shutdown();
+            manager.close_all_for_shutdown();
         }
     });
 }

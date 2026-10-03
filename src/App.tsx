@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { AppLayout } from "./components/AppLayout";
 import { RightPanel } from "./components/RightPanel";
 import { TerminalWorkspace } from "./components/TerminalWorkspace";
-import type { TerminalViewState } from "./terminal/types";
+import { useRightPanel } from "./panels/useRightPanel";
+import { TERMINAL_PANE_IDS, type TerminalPaneId, type TerminalPaneState } from "./terminal/types";
 import { formatWorkspaceError, openWorkspace } from "./workspace/workspaceApi";
 import type { WorkspaceDescriptor } from "./workspace/types";
 import { useWorkspaceExplorer } from "./workspace/useWorkspaceExplorer";
@@ -13,9 +14,19 @@ function App() {
   const [workspace, setWorkspace] = useState<WorkspaceDescriptor | null>(null);
   const [workspaceError, setWorkspaceError] = useState<string | null>(null);
   const [isOpeningWorkspace, setIsOpeningWorkspace] = useState(false);
-  const [activeTool, setActiveTool] = useState<"git" | "explorer">("git");
-  const [terminalState, setTerminalState] = useState<TerminalViewState>("idle");
+  const [bodyWidth, setBodyWidth] = useState(0);
+  const [activePaneId, setActivePaneId] = useState<TerminalPaneId>("T1");
+  const [terminalStates, setTerminalStates] = useState<Record<TerminalPaneId, TerminalPaneState>>(() =>
+    Object.fromEntries(
+      TERMINAL_PANE_IDS.map((paneId) => [paneId, { paneId, session: null, state: "idle", rootPath: null, error: null, exitCode: null }]),
+    ) as Record<TerminalPaneId, TerminalPaneState>,
+  );
   const explorer = useWorkspaceExplorer(workspace);
+  const rightPanel = useRightPanel(bodyWidth);
+
+  const handleBodyWidthChange = useCallback((width: number) => {
+    setBodyWidth((current) => current === width ? current : width);
+  }, []);
 
   async function checkIpc() {
     try {
@@ -37,10 +48,10 @@ function App() {
       const nextWorkspace = await openWorkspace();
       if (nextWorkspace) {
         setWorkspace(nextWorkspace);
-        setActiveTool("explorer");
+        rightPanel.selectPanel("explorer");
       }
     } catch (error) {
-      setActiveTool("explorer");
+      rightPanel.selectPanel("explorer");
       setWorkspaceError(formatWorkspaceError(error));
     } finally {
       setIsOpeningWorkspace(false);
@@ -51,21 +62,41 @@ function App() {
     <AppLayout
       isOpeningWorkspace={isOpeningWorkspace}
       onOpenWorkspace={chooseWorkspace}
-      terminalState={terminalState}
+      onBodyWidthChange={handleBodyWidthChange}
+      onClosePanel={rightPanel.closePanel}
+      onPanelWidthChange={rightPanel.setPanelWidth}
+      onTogglePanel={rightPanel.togglePanel}
+      panelOpen={rightPanel.state.rightPanelOpen}
+      panelWidth={rightPanel.geometry.effectiveWidth}
+      panelMinWidth={rightPanel.geometry.minWidth}
+      panelMaxWidth={rightPanel.geometry.maxWidth}
+      splitterWidth={rightPanel.geometry.splitterWidth}
+      activePaneId={activePaneId}
+      terminalStates={terminalStates}
       workspaceName={workspace?.name ?? null}
-    >
-      <TerminalWorkspace onStateChange={setTerminalState} workspace={workspace} />
-      <RightPanel
-        activeTool={activeTool}
-        explorer={explorer}
-        ipcMessage={ipcMessage}
-        onCheckIpc={checkIpc}
-        onOpenWorkspace={chooseWorkspace}
-        onSelectTool={setActiveTool}
-        workspace={workspace}
-        workspaceError={workspaceError}
-      />
-    </AppLayout>
+      terminalWorkspace={
+        <TerminalWorkspace
+          onActivePaneChange={setActivePaneId}
+          onPaneStateChange={(nextState) => setTerminalStates((current) => ({ ...current, [nextState.paneId]: nextState }))}
+          workspace={workspace}
+        />
+      }
+      rightPanel={
+        <RightPanel
+          activePanel={rightPanel.state.activeRightPanel}
+          editorSize={rightPanel.state.editorSize}
+          explorer={explorer}
+          ipcMessage={ipcMessage}
+          onCheckIpc={checkIpc}
+          onEditorSizeChange={rightPanel.setEditorSize}
+          onOpenWorkspace={chooseWorkspace}
+          onSelectPanel={rightPanel.selectPanel}
+          open={rightPanel.state.rightPanelOpen}
+          workspace={workspace}
+          workspaceError={workspaceError}
+        />
+      }
+    />
   );
 }
 

@@ -5,8 +5,10 @@ use std::sync::{
 };
 
 use serde::Serialize;
-use tauri::{AppHandle, State};
+use tauri::{AppHandle, Manager, State, WebviewWindow};
 use tauri_plugin_dialog::DialogExt;
+
+use crate::terminal::TerminalManager;
 
 #[derive(Default)]
 pub struct WorkspaceState {
@@ -56,6 +58,7 @@ fn io_error(code: &str, operation: &str, error: std::io::Error) -> WorkspaceErro
 #[tauri::command]
 pub async fn open_workspace(
     app: AppHandle,
+    window: WebviewWindow,
     state: State<'_, WorkspaceState>,
 ) -> Result<Option<WorkspaceDescriptor>, WorkspaceError> {
     let selected = app.dialog().file().blocking_pick_folder();
@@ -103,6 +106,12 @@ pub async fn open_workspace(
         name,
         root_path: root_path.to_owned(),
     };
+
+    if let Some(previous) = state.active_snapshot()? {
+        app.state::<TerminalManager>()
+            .close_workspace(&previous.id, window.label())
+            .map_err(|error| WorkspaceError::new(error.code, error.message))?;
+    }
 
     let mut active = state.active.lock().map_err(|_| {
         WorkspaceError::new(

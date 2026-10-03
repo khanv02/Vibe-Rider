@@ -49,6 +49,26 @@ Rust test suite pass với native PowerShell round-trip input/output; frontend b
 
 Chi tiết tiến độ: [Phase 2 Terminal Core](docs/phase-2-terminal-core-preview.md).
 
+### Phase 3 — Four Terminals
+
+Đã hoàn tất implementation phần code cốt lõi. Ứng dụng có tối đa bốn PowerShell/PTY session độc lập, grid mặc định 2 × 2, layout 1/2/4, focus và Close/Restart từng terminal. Pane bị ẩn vẫn giữ component, process, output buffer và tiếp tục xử lý stream. Automated verification đã pass; native multi-pane click-through vẫn là release gate riêng.
+
+Đã hoàn tất implementation theo thứ tự: multi-session manager → grid 2 × 2 → layout 1/2/4 → session actions/lifecycle. Bước còn lại là independent native verification theo ma trận trong preview.
+
+Chi tiết implementation, actual results và checklist release: [Phase 3 — Four Terminals](docs/phase-3-four-terminals-preview.md). Kế hoạch thiết kế: [Phase 3 Plan](agents/plans/Phase_3_Four_Terminals_Plan.md).
+
+### Phase 4 — Right Panel
+
+Đã hoàn tất frontend contract và UI container: panel bên phải chuyển giữa Git/Explorer/Editor/AI, kéo đổi chiều rộng, đóng/mở toàn bộ và có Editor Normal/Expanded. Explorer dùng chức năng hiện có; Git, Editor và AI là container/placeholder chờ phase tương ứng. Các slot được giữ mounted để bảo toàn terminal session/buffer và Explorer state.
+
+- Git mở mặc định; click lại tool đang active giữ panel mở. Collapse chỉ qua Hide tools hoặc splitter.
+- Resize có splitter pointer/keyboard, giới hạn theo viewport và không làm thay đổi terminal session.
+- Collapse ẩn rail/content/splitter; header vẫn có nút mở lại.
+- Automated verification: `npm run build`, `cargo test` 16/16 và Tauri startup compile đều pass.
+- Native click-through switch/resize/focus/state-retention và nghiệm thu đầy đủ vẫn là release gate riêng.
+
+Thứ tự đã thực hiện: **4.1 Panel contract → 4.2 Switch panel → 4.3 Resize/collapse**; **4.4 State retention** đang chờ native verification. Kế hoạch: [Phase 4 Plan](agents/plans/Phase_4_Right_Panel_Plan.md). Checklist và actual results: [Phase 4 Right Panel](docs/phase-4-right-panel-preview.md).
+
 ## Product direction
 
 ```text
@@ -68,10 +88,10 @@ Terminal là main workspace. Git, Explorer, Editor và AI là supporting tools �
 ┌────────────────────────────────────────┬────────────┐
 │ Vibe Rider / Workspace                 │ Explorer   │
 ├────────────────────────────────────────┤ Git        │
-│ Terminal Core · 1 session              │ workspace  │
+│ Phase 3 · Four Terminals · 4 panes     │ workspace  │
 │ [Start / Close] · idle/running         │ context    │
 ├────────────────────────────────────────┴────────────┤
-│ Phase 2 / Task 2.5 · Workspace: none                │
+│ Layout 1 / 2 / 4 · Workspace: none                  │
 └─────────────────────────────────────────────────────┘
 ```
 
@@ -218,7 +238,7 @@ cargo check --manifest-path src-tauri/Cargo.toml
 cargo test --manifest-path src-tauri/Cargo.toml
 ```
 
-`cargo test` pass với 13 unit tests, gồm path guard, containment, one-level listing, empty directory, error boundary và terminal lifecycle.
+`cargo test` pass với 16 unit tests, gồm path guard, containment, one-level listing, empty directory, error boundary, terminal lifecycle và multi-session contract.
 
 ## Phase 1 Workspace hiện có
 
@@ -283,23 +303,29 @@ Manual click-through đã xác nhận các nhánh success/cancel/error của fol
 
 ```text
 src/
-├─ App.tsx                              # App state, ping IPC và Open Folder flow
+├─ App.tsx                              # App state, panel controller, ping IPC và Open Folder flow
 ├─ main.tsx                             # React entry point
 ├─ styles.css                           # Visual system, shell và panel layout
 ├─ components/
-│  ├─ AppLayout.tsx                     # Header, Open Folder và status bar host
-│  ├─ TerminalWorkspace.tsx             # Một terminal xterm/PTY thật
-│  ├─ RightPanel.tsx                    # Git/Explorer panel và workspace context
+│  ├─ AppLayout.tsx                     # Header, body grid, splitter và status bar host
+│  ├─ TerminalWorkspace.tsx             # Grid bốn terminal và layout 1/2/4
+│  ├─ RightPanel.tsx                    # Rail bốn tool, stable slots và workspace context
+│  ├─ RightPanelResizeHandle.tsx        # Pointer/keyboard resize và ARIA separator
 │  ├─ ExplorerPanel.tsx                 # Explorer tree, states, refresh và selection
 │  ├─ ExplorerTreeNode.tsx              # Node lazy-loaded và retry
-│  └─ StatusBar.tsx                     # Workspace name và terminal status
+│  ├─ StatusBar.tsx                     # Workspace name và terminal status
+│  └─ TerminalPane.tsx                   # Xterm, session lifecycle và actions của một pane
 ├─ workspace/
    ├─ types.ts                          # Workspace và directory DTO/error types
    ├─ workspaceApi.ts                   # Typed invoke wrapper và error formatting
    └─ useWorkspaceExplorer.ts           # Cache, expansion, loading và request tokens
-└─ terminal/
+├─ terminal/
    ├─ types.ts                          # Terminal session/event/error DTOs
    └─ terminalApi.ts                    # Tauri Channel và terminal command wrappers
+└─ panels/
+   ├─ types.ts                          # Right-panel IDs/state/geometry types
+   ├─ panelLayout.ts                    # Width bounds, clamp và derived geometry
+   └─ useRightPanel.ts                   # App-owned panel state/actions
 
 src-tauri/
 ├─ src/
@@ -309,7 +335,7 @@ src-tauri/
 │  ├─ path_guard.rs                     # Relative path, containment và link policy
 │  ├─ filesystem.rs                     # One-level directory listing và error mapping
 │  └─ terminal/
-│     ├─ mod.rs                         # Terminal manager và IPC commands
+│     ├─ mod.rs                         # Multi-session manager và IPC commands
 │     ├─ session.rs                     # PTY session, Channel và cleanup
 │     └─ shell.rs                       # PowerShell resolution
 ├─ build.rs                             # Tauri build attributes
@@ -319,7 +345,9 @@ src-tauri/
 docs/
 ├─ phase-0-foundation-preview.md        # Phase 0 evidence and acceptance
 ├─ phase-1-workspace-preview.md         # Phase 1 scope, status and checklist
-└─ phase-2-terminal-core-preview.md     # Phase 2 scope, status and checklist
+├─ phase-2-terminal-core-preview.md     # Phase 2 scope, status and checklist
+├─ phase-3-four-terminals-preview.md    # Phase 3 scope, design and checklist
+└─ phase-4-right-panel-preview.md       # Phase 4 scope, contract and checklist
 ```
 
 Không sửa trực tiếp file sinh tự động trong `src-tauri/gen/schemas`; capability/config phải được cập nhật theo cách gọi thực tế và không cấp filesystem permission rộng cho frontend.
@@ -345,8 +373,8 @@ Không sửa trực tiếp file sinh tự động trong `src-tauri/gen/schemas`;
 | 0 — Foundation | Desktop shell, terminal-first layout mock và IPC proof |
 | 1 — Workspace | Open Folder, path guard và Explorer lazy loading |
 | 2 — Terminal Core | Một PowerShell PTY hoạt động thật |
-| 3 — Four Terminals | Session độc lập và layout 1/2/4 |
-| 4 — Right Panel | Panel phải switchable, collapsible và resizable |
+| 3 — Four Terminals | Multi-session manager, bốn PTY độc lập và layout 1/2/4; native smoke đang chờ |
+| 4 — Right Panel | Frontend switch/collapse/resize đã triển khai; native state-retention smoke đang chờ |
 | 5 — Editor | Monaco, tabs, save, dirty state và diff |
 | 6 — Git | Status, diff, add, restore, commit và push |
 | 7 — UX | Shortcut, persistence và dogfooding chính IDE |
@@ -363,3 +391,7 @@ Chỉ chuyển phase sau khi tiêu chí nghiệm thu của phase hiện tại đ
 - [Phase 0 Preview](docs/phase-0-foundation-preview.md) — bằng chứng nghiệm thu Foundation.
 - [Phase 1 Workspace](docs/phase-1-workspace-preview.md) — contract, tiến độ, test evidence và checklist Workspace.
 - [Phase 2 Terminal Core Plan](agents/plans/Phase_2_Terminal_Core_Plan.md) — kiến trúc PTY, contract input/output, lifecycle và tiêu chí nghiệm thu terminal.
+- [Phase 3 Four Terminals Plan](agents/plans/Phase_3_Four_Terminals_Plan.md) — multi-session ownership, grid 2 × 2, layout 1/2/4, focus và kiểm thử độc lập.
+- [Phase 3 Four Terminals](docs/phase-3-four-terminals-preview.md) — implementation status, actual test results, native smoke matrix và checklist release.
+- [Phase 4 Right Panel](docs/phase-4-right-panel-preview.md) — panel contract, switch/collapse/resize, state retention và native acceptance matrix.
+- [Phase 4 Right Panel Plan](agents/plans/Phase_4_Right_Panel_Plan.md) — state/ownership, width constraints, pointer/focus, Editor Normal/Expanded và checkpoint 4.1–4.4.

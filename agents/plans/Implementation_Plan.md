@@ -219,6 +219,8 @@ PowerShell stdout/stderr → PTY reader → IPC → xterm.js
 
 ### Phase 3 — Four Terminals
 
+Kế hoạch chi tiết: [Phase 3 — Four Terminals](Phase_3_Four_Terminals_Plan.md). Trạng thái: **đã triển khai implementation; native multi-pane verification đang chờ**.
+
 **Mục tiêu:** bốn PTY session độc lập với layout 1, 2 và 4 terminal.
 
 **Kiến thức:** session ownership, routing input/output, process lifecycle và component lifecycle.
@@ -235,18 +237,22 @@ PowerShell stdout/stderr → PTY reader → IPC → xterm.js
 
 ### Phase 4 — Right Panel
 
+Kế hoạch chi tiết: [Phase 4 — Right Panel](Phase_4_Right_Panel_Plan.md). Checklist: [Phase 4 Preview](../../docs/phase-4-right-panel-preview.md). Trạng thái: **đã triển khai frontend; native verification đang chờ**.
+
 **Mục tiêu:** biến right-panel mock của Phase 0 thành container hỗ trợ thật mà không làm gián đoạn terminal.
 
 **Kiến thức:** layout state, focus, resize constraint, collapse và giữ state khi switch panel.
 
 **Task:**
 
-- [ ] **4.1 — Panel contract:** `activeRightPanel`, `rightPanelOpen`, `rightPanelWidth`; Git mặc định.
-- [ ] **4.2 — Switch panel:** Git, Explorer, Editor và AI; chỉ một panel chính hiển thị.
-- [ ] **4.3 — Resize/collapse:** giới hạn width, đóng/mở panel và editor normal/expanded.
+- [x] **4.1 — Panel contract:** `activeRightPanel`, `rightPanelOpen`, `rightPanelWidth`; Git mặc định.
+- [x] **4.2 — Switch panel:** Git, Explorer, Editor và AI; chỉ một panel chính hiển thị.
+- [x] **4.3 — Resize/collapse:** giới hạn width, đóng/mở panel và editor normal/expanded.
 - [ ] **4.4 — State retention:** switch panel không làm mất terminal session hoặc Explorer state.
 
 **Nghiệm thu:** Git mặc định; switch/collapse/resize hoạt động; đóng panel để terminal chiếm gần toàn màn hình.
+
+**Actual verification:** `npm run build` pass; `cargo test --manifest-path src-tauri/Cargo.toml` pass 16/16; `npm run tauri -- dev` compile/startup pass. Native click-through cho switch, resize, focus và state retention chưa được đánh dấu đạt.
 
 ### Phase 5 — Editor
 
@@ -357,7 +363,7 @@ Không chuyển phase chỉ vì code đã được viết. Native feature phải
 
 ## 6. Trạng thái hiện tại và bước tiếp theo
 
-Phase hiện tại: **Phase 2 — Terminal Core đã hoàn tất nghiệm thu; sẵn sàng chuyển sang Phase 3.**
+Phase hiện tại: **Phase 4 — Right Panel đã triển khai frontend contract/UI; native smoke và state-retention verification đang chờ. Phase 3 native smoke vẫn là gate độc lập.**
 
 | Hạng mục | Trạng thái |
 | --- | --- |
@@ -370,7 +376,9 @@ Phase hiện tại: **Phase 2 — Terminal Core đã hoàn tất nghiệm thu; s
 | `rustc` / `cargo` trong `PATH` | Đã có `1.99.0`, toolchain `stable-x86_64-pc-windows-msvc`; kiểm tra 2026-10-03 |
 | Tauri native dev mode | Đã xác minh |
 
-Phase 1 và Phase 2 đã qua implementation, automated verification và native UI click-through. Task kế tiếp theo roadmap là Phase 3 Four Terminals.
+Phase 1 và Phase 2 đã qua implementation, automated verification và native UI click-through. Phase 3 Four Terminals đã triển khai multi-session manager, grid/layout 1/2/4 và actions/lifecycle; `npm run build`, `cargo fmt --check`, `cargo check`, `cargo test` (16/16) và `cargo clippy -D warnings` đã pass. Native multi-pane click-through và full smoke matrix chưa được đánh dấu nghiệm thu.
+
+Phase 4 đã triển khai state contract, switch bốn tools, full collapse/reopen, resize và Editor Normal/Expanded. Task 4.1–4.3 đã có code/build evidence; Task 4.4 còn cần native click-through để xác nhận focus, xterm/Explorer retention và min-window behavior.
 
 ```powershell
 cargo check --manifest-path src-tauri/Cargo.toml

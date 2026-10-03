@@ -1,9 +1,10 @@
 mod session;
 mod shell;
 
+use std::collections::HashMap;
 use std::sync::{
     atomic::{AtomicU64, Ordering},
-    Mutex,
+    Mutex, MutexGuard,
 };
 
 use portable_pty::PtySize;
@@ -21,8 +22,18 @@ const MAX_TERMINAL_DIMENSION: u16 = 1_000;
 #[serde(rename_all = "camelCase")]
 pub struct TerminalSpawnRequest {
     workspace_id: String,
+    pane_id: TerminalPaneId,
     rows: u16,
     cols: u16,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Serialize, Eq, Hash, PartialEq)]
+#[serde(rename_all = "UPPERCASE")]
+pub enum TerminalPaneId {
+    T1,
+    T2,
+    T3,
+    T4,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -30,6 +41,7 @@ pub struct TerminalSpawnRequest {
 pub struct TerminalSession {
     session_id: String,
     workspace_id: String,
+    pane_id: TerminalPaneId,
     shell: ShellKind,
     pid: Option<u32>,
     state: TerminalSessionState,
@@ -38,12 +50,16 @@ pub struct TerminalSession {
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TerminalError {
-    code: String,
-    message: String,
+    pub(crate) code: String,
+    pub(crate) message: String,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
-#[serde(tag = "type", rename_all = "camelCase")]
+#[serde(
+    tag = "type",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
 pub(crate) enum TerminalEvent {
     Started {
         session: TerminalSession,
@@ -51,18 +67,21 @@ pub(crate) enum TerminalEvent {
     Data {
         session_id: String,
         workspace_id: String,
+        pane_id: TerminalPaneId,
         sequence: u64,
         data: Vec<u8>,
     },
     Exited {
         session_id: String,
         workspace_id: String,
+        pane_id: TerminalPaneId,
         exit_code: Option<i32>,
         reason: String,
     },
     Error {
         session_id: String,
         workspace_id: String,
+        pane_id: TerminalPaneId,
         code: String,
         message: String,
     },
@@ -77,9 +96,11 @@ impl TerminalError {
     }
 }
 
+const MAX_TERMINAL_SESSIONS: usize = 4;
+
 #[derive(Default)]
 pub struct TerminalManager {
-    active: Mutex<Option<TerminalSlot>>,
+    active: Mutex<HashMap<String, TerminalSlot>>,
     next_id: AtomicU64,
 }
 
@@ -87,56 +108,105 @@ enum TerminalSlot {
     Starting {
         session_id: String,
         workspace_id: String,
+        pane_id: TerminalPaneId,
         owner_label: String,
     },
     Running(RunningSession),
+    Closing {
+        session_id: String,
+        workspace_id: String,
+        pane_id: TerminalPaneId,
+        owner_label: String,
+    },
 }
 
 impl TerminalManager {
-    fn reserve(&self, workspace_id: &str, owner_label: &str) -> Result<String, TerminalError> {
+    fn reserve(
+        &self,
+        workspace_id: &str,
+        pane_id: TerminalPaneId,
+        owner_label: &str,
+    ) -> Result<String, TerminalError> {
         let stale = {
             let mut active = self.lock_active()?;
-            if matches!(active.as_ref(), Some(TerminalSlot::Running(session)) if session.is_exited())
-            {
-                active.take()
-            } else if active.is_some() {
-                return Err(TerminalError::new(
-                    "SESSION_ACTIVE",
-                    "Đã có một terminal đang khởi động hoặc đang chạy.",
-                ));
-            } else {
-                None
-            }
+            let stale_ids = active
+                .iter()
+                .filter_map(|(session_id, slot)| match slot {
+                    TerminalSlot::Running(session) if session.is_exited() => {
+                        Some(session_id.clone())
+                    }
+                    _ => None,
+                })
+                .collect::<Vec<_>>();
+            stale_ids
+                .into_iter()
+                .filter_map(|session_id| match active.remove(&session_id) {
+                    Some(TerminalSlot::Running(session)) => Some(session),
+                    _ => None,
+                })
+                .collect::<Vec<_>>()
         };
-        if let Some(TerminalSlot::Running(session)) = stale {
+        for session in stale {
             let _ = session.close();
         }
 
         let mut active = self.lock_active()?;
-        if active.is_some() {
+        if active.len() >= MAX_TERMINAL_SESSIONS {
             return Err(TerminalError::new(
-                "SESSION_ACTIVE",
-                "Terminal đang được sử dụng.",
+                "SESSION_LIMIT_REACHED",
+                "Đã đạt giới hạn bốn terminal session.",
             ));
         }
-
+        if active.values().any(|slot| match slot {
+            TerminalSlot::Starting {
+                workspace_id: active_workspace,
+                pane_id: active_pane,
+                owner_label: active_owner,
+                ..
+            }
+            | TerminalSlot::Closing {
+                workspace_id: active_workspace,
+                pane_id: active_pane,
+                owner_label: active_owner,
+                ..
+            } => {
+                active_workspace == workspace_id
+                    && *active_pane == pane_id
+                    && active_owner == owner_label
+            }
+            TerminalSlot::Running(session) => {
+                let descriptor = session.descriptor();
+                descriptor.workspace_id == workspace_id
+                    && descriptor.pane_id == pane_id
+                    && session.owner_label() == owner_label
+            }
+        }) {
+            return Err(TerminalError::new(
+                "PANE_ACTIVE",
+                "Pane này đã có một session đang khởi động, chạy hoặc đóng.",
+            ));
+        }
         let sequence = self
             .next_id
             .fetch_add(1, Ordering::Relaxed)
             .saturating_add(1);
         let session_id = format!("terminal-{sequence}");
-        *active = Some(TerminalSlot::Starting {
-            session_id: session_id.clone(),
-            workspace_id: workspace_id.to_owned(),
-            owner_label: owner_label.to_owned(),
-        });
+        active.insert(
+            session_id.clone(),
+            TerminalSlot::Starting {
+                session_id: session_id.clone(),
+                workspace_id: workspace_id.to_owned(),
+                pane_id,
+                owner_label: owner_label.to_owned(),
+            },
+        );
         Ok(session_id)
     }
 
     fn start_output(&self, session_id: &str) -> Result<(), TerminalError> {
         let active = self.lock_active()?;
-        match active.as_ref() {
-            Some(TerminalSlot::Running(session)) if session.session_id() == session_id => {
+        match active.get(session_id) {
+            Some(TerminalSlot::Running(session)) => {
                 session.start_output();
                 Ok(())
             }
@@ -154,7 +224,7 @@ impl TerminalManager {
         owner_label: &str,
     ) -> Result<SessionIo, TerminalError> {
         let active = self.lock_active()?;
-        match active.as_ref() {
+        match active.get(session_id) {
             Some(TerminalSlot::Running(session))
                 if session.session_id() == session_id
                     && session.owner_label() == owner_label
@@ -182,11 +252,13 @@ impl TerminalManager {
                 )))
             }
         };
+        let descriptor = session.descriptor();
         let reservation_matches = matches!(
-            active.as_ref(),
-            Some(TerminalSlot::Starting { session_id, workspace_id, owner_label })
+            active.get(session.session_id()),
+            Some(TerminalSlot::Starting { session_id, workspace_id, pane_id, owner_label })
                 if session_id == session.session_id()
-                    && workspace_id == &session.descriptor().workspace_id
+                    && workspace_id == &descriptor.workspace_id
+                    && pane_id == &descriptor.pane_id
                     && owner_label == session.owner_label()
         );
 
@@ -197,19 +269,17 @@ impl TerminalManager {
             )));
         }
 
-        let descriptor = session.descriptor();
-        *active = Some(TerminalSlot::Running(session));
+        active.insert(
+            session.session_id().to_owned(),
+            TerminalSlot::Running(session),
+        );
         Ok(descriptor)
     }
 
     fn rollback(&self, session_id: &str) {
         if let Ok(mut active) = self.active.lock() {
-            let should_clear = matches!(
-                active.as_ref(),
-                Some(TerminalSlot::Starting { session_id: reserved, .. }) if reserved == session_id
-            );
-            if should_clear {
-                *active = None;
+            if matches!(active.get(session_id), Some(TerminalSlot::Starting { .. })) {
+                active.remove(session_id);
             }
         }
     }
@@ -217,47 +287,182 @@ impl TerminalManager {
     fn close(&self, session_id: &str, owner_label: &str) -> Result<(), TerminalError> {
         let slot = {
             let mut active = self.lock_active()?;
-            match active.as_ref() {
+            match active.remove(session_id) {
                 Some(TerminalSlot::Starting {
-                    session_id: active_id,
                     owner_label: active_owner,
                     ..
-                }) if active_id == session_id && active_owner == owner_label => active.take(),
+                }) if active_owner == owner_label => None,
                 Some(TerminalSlot::Running(session))
                     if session.session_id() == session_id
                         && session.owner_label() == owner_label =>
                 {
-                    active.take()
+                    active.insert(
+                        session_id.to_owned(),
+                        TerminalSlot::Closing {
+                            session_id: session_id.to_owned(),
+                            workspace_id: session.descriptor().workspace_id.clone(),
+                            pane_id: session.descriptor().pane_id,
+                            owner_label: owner_label.to_owned(),
+                        },
+                    );
+                    Some(TerminalSlot::Running(session))
                 }
+                Some(TerminalSlot::Closing { .. }) => return Ok(()),
                 None => return Ok(()),
-                _ => {
+                Some(slot) => {
+                    active.insert(session_id.to_owned(), slot);
                     return Err(TerminalError::new(
                         "SESSION_NOT_FOUND",
                         "Terminal session không tồn tại hoặc không còn active.",
-                    ))
+                    ));
                 }
             }
         };
 
-        match slot {
+        let close_result = match slot {
             Some(TerminalSlot::Running(session)) => session.close(),
-            Some(TerminalSlot::Starting { .. }) | None => Ok(()),
+            Some(TerminalSlot::Starting { .. }) | Some(TerminalSlot::Closing { .. }) | None => {
+                Ok(())
+            }
+        };
+        if let Ok(mut active) = self.active.lock() {
+            if matches!(active.get(session_id), Some(TerminalSlot::Closing { .. })) {
+                active.remove(session_id);
+            }
+        }
+        close_result
+    }
+
+    pub(crate) fn close_all_for_shutdown(&self) {
+        let sessions = self
+            .active
+            .lock()
+            .ok()
+            .map(|active| {
+                active
+                    .iter()
+                    .map(|(session_id, slot)| {
+                        let owner = match slot {
+                            TerminalSlot::Starting { owner_label, .. }
+                            | TerminalSlot::Closing { owner_label, .. } => owner_label.clone(),
+                            TerminalSlot::Running(session) => session.owner_label().to_owned(),
+                        };
+                        (session_id.clone(), owner)
+                    })
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default();
+        for (session_id, owner_label) in sessions {
+            let _ = self.close(&session_id, &owner_label);
         }
     }
 
-    pub(crate) fn close_active_for_shutdown(&self) {
-        let slot = self.active.lock().ok().and_then(|mut active| active.take());
-        if let Some(TerminalSlot::Running(session)) = slot {
-            let _ = session.close();
-        }
-    }
-
-    fn lock_active(
+    pub(crate) fn close_workspace(
         &self,
-    ) -> Result<std::sync::MutexGuard<'_, Option<TerminalSlot>>, TerminalError> {
+        workspace_id: &str,
+        owner_label: &str,
+    ) -> Result<(), TerminalError> {
+        let session_ids = self
+            .lock_active()?
+            .iter()
+            .filter_map(|(session_id, slot)| match slot {
+                TerminalSlot::Starting {
+                    workspace_id: active_workspace,
+                    owner_label: active_owner,
+                    ..
+                }
+                | TerminalSlot::Closing {
+                    workspace_id: active_workspace,
+                    owner_label: active_owner,
+                    ..
+                } if active_workspace == workspace_id && active_owner == owner_label => {
+                    Some(session_id.clone())
+                }
+                TerminalSlot::Running(session)
+                    if session.descriptor().workspace_id == workspace_id
+                        && session.owner_label() == owner_label =>
+                {
+                    Some(session_id.clone())
+                }
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+
+        let mut first_error = None;
+        for session_id in session_ids {
+            if let Err(error) = self.close(&session_id, owner_label) {
+                first_error.get_or_insert(error);
+            }
+        }
+        first_error.map_or(Ok(()), Err)
+    }
+
+    pub(crate) fn list(
+        &self,
+        workspace_id: &str,
+        owner_label: &str,
+    ) -> Result<Vec<TerminalSlotSnapshot>, TerminalError> {
+        Ok(self
+            .lock_active()?
+            .values()
+            .filter_map(|slot| match slot {
+                TerminalSlot::Starting {
+                    session_id,
+                    workspace_id: active_workspace,
+                    pane_id,
+                    owner_label: active_owner,
+                } if active_workspace == workspace_id && active_owner == owner_label => Some(
+                    TerminalSlotSnapshot::new(session_id, active_workspace, *pane_id, "starting"),
+                ),
+                TerminalSlot::Running(session)
+                    if session.descriptor().workspace_id == workspace_id
+                        && session.owner_label() == owner_label =>
+                {
+                    let descriptor = session.descriptor();
+                    Some(TerminalSlotSnapshot::new(
+                        &descriptor.session_id,
+                        &descriptor.workspace_id,
+                        descriptor.pane_id,
+                        "running",
+                    ))
+                }
+                TerminalSlot::Closing {
+                    session_id,
+                    workspace_id: active_workspace,
+                    pane_id,
+                    owner_label: active_owner,
+                } if active_workspace == workspace_id && active_owner == owner_label => Some(
+                    TerminalSlotSnapshot::new(session_id, active_workspace, *pane_id, "closing"),
+                ),
+                _ => None,
+            })
+            .collect())
+    }
+
+    fn lock_active(&self) -> Result<MutexGuard<'_, HashMap<String, TerminalSlot>>, TerminalError> {
         self.active
             .lock()
             .map_err(|_| TerminalError::new("STATE_UNAVAILABLE", "Terminal state không khả dụng."))
+    }
+}
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TerminalSlotSnapshot {
+    session_id: String,
+    workspace_id: String,
+    pane_id: TerminalPaneId,
+    state: String,
+}
+
+impl TerminalSlotSnapshot {
+    fn new(session_id: &str, workspace_id: &str, pane_id: TerminalPaneId, state: &str) -> Self {
+        Self {
+            session_id: session_id.to_owned(),
+            workspace_id: workspace_id.to_owned(),
+            pane_id,
+            state: state.to_owned(),
+        }
     }
 }
 
@@ -307,6 +512,7 @@ fn spawn_terminal(
         &manager,
         snapshot,
         owner_label,
+        request.pane_id,
         size,
         on_event,
     )
@@ -317,15 +523,17 @@ fn spawn_reserved(
     manager: &TerminalManager,
     snapshot: WorkspaceSnapshot,
     owner_label: &str,
+    pane_id: TerminalPaneId,
     size: PtySize,
     on_event: Channel<TerminalEvent>,
 ) -> Result<TerminalSession, TerminalError> {
-    let session_id = manager.reserve(&snapshot.id, owner_label)?;
+    let session_id = manager.reserve(&snapshot.id, pane_id, owner_label)?;
     let spawn_result = (|| {
         let shell = resolve_powershell()?;
         let session = RunningSession::spawn(
             session_id.clone(),
             snapshot.id.clone(),
+            pane_id,
             owner_label.to_owned(),
             &snapshot.root,
             shell,
@@ -396,6 +604,46 @@ pub async fn terminal_close(
         TerminalError::new(
             "CLOSE_FAILED",
             format!("Terminal close worker kết thúc ngoài dự kiến: {error}"),
+        )
+    })?
+}
+
+#[tauri::command]
+pub async fn terminal_list(
+    app: AppHandle,
+    window: WebviewWindow,
+    workspace_id: String,
+) -> Result<Vec<TerminalSlotSnapshot>, TerminalError> {
+    let owner_label = window.label().to_owned();
+    tauri::async_runtime::spawn_blocking(move || {
+        app.state::<TerminalManager>()
+            .list(&workspace_id, &owner_label)
+    })
+    .await
+    .map_err(|error| {
+        TerminalError::new(
+            "STATE_UNAVAILABLE",
+            format!("Terminal list worker lỗi: {error}"),
+        )
+    })?
+}
+
+#[tauri::command]
+pub async fn terminal_close_workspace(
+    app: AppHandle,
+    window: WebviewWindow,
+    workspace_id: String,
+) -> Result<(), TerminalError> {
+    let owner_label = window.label().to_owned();
+    tauri::async_runtime::spawn_blocking(move || {
+        app.state::<TerminalManager>()
+            .close_workspace(&workspace_id, &owner_label)
+    })
+    .await
+    .map_err(|error| {
+        TerminalError::new(
+            "CLOSE_FAILED",
+            format!("Workspace terminal cleanup worker lỗi: {error}"),
         )
     })?
 }
@@ -493,7 +741,7 @@ fn validated_size(rows: u16, cols: u16) -> Result<PtySize, TerminalError> {
 
 #[cfg(test)]
 mod tests {
-    use super::{validated_size, TerminalManager};
+    use super::{validated_size, TerminalEvent, TerminalManager, TerminalPaneId};
 
     #[test]
     fn validates_terminal_dimensions() {
@@ -506,26 +754,36 @@ mod tests {
     }
 
     #[test]
-    fn allows_only_one_active_reservation() {
+    fn allows_four_distinct_pane_reservations() {
         let manager = TerminalManager::default();
-        let session_id = manager
-            .reserve("workspace-1", "main")
-            .expect("first reservation");
-
+        let panes = [
+            TerminalPaneId::T1,
+            TerminalPaneId::T2,
+            TerminalPaneId::T3,
+            TerminalPaneId::T4,
+        ];
+        let ids = panes
+            .into_iter()
+            .map(|pane| {
+                manager
+                    .reserve("workspace-1", pane, "main")
+                    .expect("reservation")
+            })
+            .collect::<Vec<_>>();
         let error = manager
-            .reserve("workspace-1", "main")
-            .expect_err("second reservation must fail");
-        assert_eq!(error.code, "SESSION_ACTIVE");
-
-        manager.rollback(&session_id);
-        assert!(manager.reserve("workspace-1", "main").is_ok());
+            .reserve("workspace-1", TerminalPaneId::T1, "main")
+            .expect_err("fifth reservation must fail");
+        assert_eq!(error.code, "SESSION_LIMIT_REACHED");
+        for id in ids {
+            manager.rollback(&id);
+        }
     }
 
     #[test]
     fn a_different_window_cannot_close_a_starting_session() {
         let manager = TerminalManager::default();
         let session_id = manager
-            .reserve("workspace-1", "main")
+            .reserve("workspace-1", TerminalPaneId::T1, "main")
             .expect("reservation should succeed");
 
         let error = manager
@@ -536,5 +794,34 @@ mod tests {
         manager
             .close(&session_id, "main")
             .expect("the owner can cancel its starting session");
+    }
+
+    #[test]
+    fn rejects_duplicate_pane_before_capacity_is_full() {
+        let manager = TerminalManager::default();
+        manager
+            .reserve("workspace-1", TerminalPaneId::T1, "main")
+            .expect("first pane reservation");
+        let error = manager
+            .reserve("workspace-1", TerminalPaneId::T1, "main")
+            .expect_err("duplicate pane must be rejected");
+        assert_eq!(error.code, "PANE_ACTIVE");
+    }
+
+    #[test]
+    fn terminal_event_fields_are_camel_case() {
+        let event = TerminalEvent::Exited {
+            session_id: "terminal-1".to_owned(),
+            workspace_id: "workspace-1".to_owned(),
+            pane_id: TerminalPaneId::T2,
+            exit_code: Some(7),
+            reason: "exited".to_owned(),
+        };
+        let value = serde_json::to_value(event).expect("event should serialize");
+        assert_eq!(value["type"], "exited");
+        assert_eq!(value["sessionId"], "terminal-1");
+        assert_eq!(value["workspaceId"], "workspace-1");
+        assert_eq!(value["paneId"], "T2");
+        assert_eq!(value["exitCode"], 7);
     }
 }

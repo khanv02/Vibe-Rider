@@ -1,8 +1,9 @@
 import { Channel, invoke } from "@tauri-apps/api/core";
-import type { TerminalError, TerminalEvent, TerminalSession } from "./types";
+import type { TerminalError, TerminalEvent, TerminalPaneId, TerminalSession } from "./types";
 
 interface SpawnTerminalRequest {
   workspaceId: string;
+  paneId: TerminalPaneId;
   rows: number;
   cols: number;
 }
@@ -18,6 +19,10 @@ export function spawnTerminal(
 
 export function closeTerminal(sessionId: string): Promise<void> {
   return invoke<void>("terminal_close", { sessionId });
+}
+
+export function listTerminals(workspaceId: string): Promise<unknown[]> {
+  return invoke<unknown[]>("terminal_list", { workspaceId });
 }
 
 export function writeTerminal(
