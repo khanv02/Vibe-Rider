@@ -13,7 +13,7 @@ Mục tiêu V1:
 - Tauri 2 chạy trên Windows.
 - Terminal là main workspace.
 - Hỗ trợ bốn terminal độc lập.
-- Explorer, Editor, Git và AI GUI là supporting tools ở bên phải.
+- Explorer, Editor và Git là supporting tools ở bên phải.
 - Rust sở hữu filesystem, process, PTY, Git, search và permission boundary.
 - Người dùng kiểm soát thao tác ghi file và chạy command của AI.
 
@@ -68,7 +68,6 @@ Thứ tự mặc định theo `Project_Instruction.md`:
   → 5 Editor
   → 6 Git
   → 7 UX
-  → 8 AI Chat
   → 9 Read-only Agent
   → 10 Coding Agent
 ```
@@ -81,11 +80,10 @@ Theo yêu cầu hiện tại của user, các phần độc lập **7.1–7.4** 
 | 1 — Workspace | Rust filesystem, Tauri IPC, React | Open Folder, read directory và Explorer |
 | 2 — Terminal Core | Rust, PTY, `portable-pty`, xterm.js, Tauri IPC | Một PowerShell terminal hoạt động thật |
 | 3 — Four Terminals | PTY session manager, React state | Bốn session độc lập và layout 1/2/4 |
-| 4 — Right Panel | React layout state | Panel Git/Explorer/Editor/AI switchable, collapsible, resizable |
+| 4 — Right Panel | React layout state | Panel Git/Explorer/Editor switchable, collapsible, resizable |
 | 5 — Editor | Monaco Editor, Zustand | Open, edit, save, tabs, dirty state và Diff Editor |
 | 6 — Git | Git CLI, Rust process | Status, diff, add, restore, commit và push |
-| 7 — UX | React state, persistence | Shortcut, restore workspace và dogfooding chính IDE |
-| 8 — AI Chat | Một AI provider | Chat streaming với context do user chọn |
+| 7 — UX | React state, persistence | Shortcut, restore workspace, panel layout và dogfooding chính IDE |
 | 9 — Read-only Agent | LLM tool calling, ripgrep, filesystem tools | Agent đọc, liệt kê và tìm code |
 | 10 — Coding Agent | Patch, diff, permission, command execution | Read → Search → Patch → Review → Accept → Test |
 
@@ -248,7 +246,7 @@ Kế hoạch chi tiết: [Phase 4 — Right Panel](Phase_4_Right_Panel_Plan.md).
 **Task:**
 
 - [x] **4.1 — Panel contract:** `activeRightPanel`, `rightPanelOpen`, `rightPanelWidth`; Git mặc định.
-- [x] **4.2 — Switch panel:** Git, Explorer, Editor và AI; chỉ một panel chính hiển thị.
+- [x] **4.2 — Switch panel:** Git, Explorer và Editor; chỉ một panel chính hiển thị.
 - [x] **4.3 — Resize/collapse:** giới hạn width, đóng/mở panel và editor normal/expanded.
 - [ ] **4.4 — State retention:** switch panel không làm mất terminal session hoặc Explorer state.
 
@@ -272,7 +270,7 @@ Kế hoạch chi tiết: [Phase 5 — Editor](Phase_5_Editor_Plan.md). Checklist
 - [x] **5.2 — Open file:** Explorer → Monaco model/tab; syntax highlighting.
 - [x] **5.3 — Edit/save:** dirty state, save và kiểm tra file đã đổi trước khi ghi.
 - [x] **5.4 — Tabs/lifecycle:** nhiều tab, close và Save/Discard/Cancel.
-- [x] **5.5 — Shared Diff Viewer:** read-only old/new snapshot cho Git và AI patch.
+- [x] **5.5 — Shared Diff Viewer:** read-only old/new snapshot cho Git và agent patch ở phase sau.
 
 **Nghiệm thu:** mở nhiều file, đổi tab không mất buffer, save đúng file, giữ Unicode/newline và diff không tự ghi filesystem.
 
@@ -316,20 +314,6 @@ Kế hoạch chi tiết: [Phase 7 — UX, song song Phase 6](Phase_7_UX_Plan.md)
 **Nghiệm thu:** hoàn thành một vòng sửa code → build/test → review diff → commit; restart giữ layout/workspace; không mất terminal input hoặc dirty buffer.
 
 Implementation evidence: [Phase 7 UX Preview](../../docs/phase-7-ux-preview.md). Task 7.5 và nghiệm thu toàn phase chờ native matrix/dogfooding.
-
-### Phase 8 — AI Chat
-
-**Mục tiêu:** AI GUI tùy chọn để hỏi code và lỗi terminal; chưa có quyền sửa file/chạy command.
-
-**Task:**
-
-- [ ] **8.1 — Provider contract:** chat, streaming, cancel và error; chỉ chọn một provider đầu tiên.
-- [ ] **8.2 — Provider connection:** API key ngoài frontend/log; xử lý thiếu key, network và rate limit.
-- [ ] **8.3 — Chat UI:** message, streaming response, cancel/retry và request state.
-- [ ] **8.4 — Explicit context:** current file, selected code hoặc terminal error do user chọn; giới hạn kích thước.
-- [ ] **8.5 — Verification:** provider giả lập cho stream/cancel/error và provider thật khi credential sẵn sàng.
-
-**Nghiệm thu:** chat streaming/cancel được; không gửi toàn repository/lịch sử terminal; chat không thay đổi filesystem.
 
 ### Phase 9 — Read-only Agent
 
@@ -394,7 +378,7 @@ Phase hiện tại: **Phase 5 — Editor core đã triển khai; native click-th
 
 Phase 1 và Phase 2 đã qua implementation, automated verification và native UI click-through. Phase 3 Four Terminals đã triển khai multi-session manager, grid/layout 1/2/4 và actions/lifecycle; `npm run build`, `cargo fmt --check`, `cargo check`, `cargo test` (16/16) và `cargo clippy -D warnings` đã pass. Native multi-pane click-through và full smoke matrix chưa được đánh dấu nghiệm thu.
 
-Phase 4 đã triển khai state contract, switch bốn tools, full collapse/reopen, resize và Editor Normal/Expanded. Task 4.1–4.3 đã có code/build evidence; Task 4.4 còn cần native click-through để xác nhận focus, xterm/Explorer retention và min-window behavior.
+Phase 4 đã triển khai state contract, switch ba tools, full collapse/reopen, resize và Editor Normal/Expanded. Task 4.1–4.3 đã có code/build evidence; Task 4.4 còn cần native click-through để xác nhận focus, xterm/Explorer retention và min-window behavior.
 
 Phase 5 đã triển khai File API, Monaco/model registry, tabs/save/dirty guards và Shared Diff Viewer. `npm run build`, `cargo fmt --check`, `cargo test` (19/19), `cargo clippy -D warnings`, `npm run tauri -- dev` startup và `npm run tauri -- build --no-bundle` đã pass; native Editor/layout click-through còn pending.
 

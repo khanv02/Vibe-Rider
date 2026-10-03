@@ -1,6 +1,6 @@
 # Phase 4 — Right Panel
 
-Tài liệu này là contract triển khai, phạm vi và checklist nghiệm thu cho Phase 4 của Vibe Rider. Phase 4 biến right-panel mock thành một container thật cho Git, Explorer, Editor và AI mà không làm gián đoạn terminal workspace.
+Tài liệu này là contract triển khai, phạm vi và checklist nghiệm thu cho Phase 4 của Vibe Rider. Phase 4 biến right-panel mock thành một container thật cho Git, Explorer và Editor mà không làm gián đoạn terminal workspace.
 
 **Cập nhật:** 2026-10-03  
 **Trạng thái:** đã triển khai frontend; native click-through Phase 4 đang chờ. Phase 3 đã cung cấp terminal/pane state cần được giữ nguyên khi panel switch, collapse hoặc resize.
@@ -16,14 +16,14 @@ Right panel phải là vùng hỗ trợ tùy chọn ở bên phải màn hình. 
 Kết quả cuối phase:
 
 - Git là panel mặc định.
-- Có thể switch giữa Git, Explorer, Editor và AI; chỉ một panel chính hiển thị tại một thời điểm.
+- Có thể switch giữa Git, Explorer và Editor; chỉ một panel chính hiển thị tại một thời điểm.
 - Có thể collapse hoàn toàn panel, gồm rail/content/splitter, để terminal nhận toàn bộ body width; header có nút mở lại.
 - Có thể resize panel trong giới hạn an toàn, không làm terminal hoặc cửa sổ 960 × 600 bị unusable.
 - Switch/collapse/resize không unmount terminal workspace và không làm mất Explorer state.
 - Editor slot có Normal/Expanded để kiểm chứng geometry trước khi tích hợp Monaco ở Phase 5.
-- Panel không tự gọi Git, Editor hoặc AI operation ngoài scope của panel đang active.
+- Panel không tự gọi Git hoặc Editor operation ngoài scope của panel đang active.
 
-Phase này chưa triển khai Git operations, Monaco editor, AI chat hoặc persistence. Các panel đó chỉ cần có slot/contract UI ổn định để Phase 5–8 tích hợp.
+Phase này chưa triển khai Git operations, Monaco editor hoặc persistence. Các panel đó chỉ cần có slot/contract UI ổn định để Phase 5–7 tích hợp.
 
 ## 2. Điều kiện bắt đầu
 
@@ -37,7 +37,7 @@ Phase 4 không được thay đổi filesystem permission, PTY ownership hoặc 
 ## 3. Contract state
 
 ~~~ts
-type RightPanelId = "git" | "explorer" | "editor" | "ai";
+type RightPanelId = "git" | "explorer" | "editor";
 
 type RightPanelState = {
   activeRightPanel: RightPanelId;
@@ -75,7 +75,7 @@ App shell
   └─ Status bar
 
 Right panel
-  ├─ Activity rail: Git / Explorer / Editor / AI
+  ├─ Activity rail: Git / Explorer / Editor
   ├─ Collapse/expand control
   └─ Tool slots giữ identity sau khi mount: đúng một view visible
 ~~~
@@ -98,7 +98,6 @@ Width tính bằng CSS pixels và gồm rail 48 px, không gồm splitter 6 px. 
 | Git | Placeholder hoặc shell UI sẵn sàng cho Phase 6 | selected view, loading/error slot |
 | Explorer | Tái sử dụng ExplorerPanel Phase 1 | expanded directories, cache, selection, request ownership |
 | Editor | Placeholder cho Monaco Phase 5, Normal/Expanded geometry | Size mode/width; models/tabs thuộc Phase 5 |
-| AI | Placeholder cho Phase 8 | conversation/context slot nếu đã có |
 
 Chỉ panel active được hiển thị như panel chính. Activity rail hiện khi panel mở; khi panel đóng, header Show tools mở lại tool đã chọn mà không che terminal.
 
@@ -112,7 +111,6 @@ Chỉ panel active được hiển thị như panel chính. Activity rail hiện
 | terminal session, xterm, output/ACK | TerminalPane và Rust TerminalManager |
 | Git operation state | Git service/panel của Phase 6 |
 | Editor model/tab/dirty state | Editor controller của Phase 5 |
-| AI conversation/context | AI controller của Phase 8 |
 
 Switch panel chỉ thay đổi presentation. Không đưa process handle, PTY handle, xterm instance hoặc toàn bộ output buffer vào right-panel state.
 
@@ -127,10 +125,10 @@ Switch panel chỉ thay đổi presentation. Không đưa process handle, PTY ha
 
 ### Task 4.2 — Switch panel
 
-- [x] Rail có Git, Explorer, Editor và AI.
+- [x] Rail có Git, Explorer và Editor.
 - [x] Chỉ một panel chính visible tại một thời điểm.
 - [x] Explorer giữ nguyên controller/cache/expanded state khi switch qua lại.
-- [x] Editor và AI có placeholder rõ ràng, không giả lập operation chưa có.
+- [x] Editor có placeholder rõ ràng, không giả lập operation chưa có.
 - [x] Switch panel không thay đổi active terminal pane/session.
 
 ### Task 4.3 — Resize và collapse
@@ -157,7 +155,7 @@ Switch panel chỉ thay đổi presentation. Không đưa process handle, PTY ha
 - Resize handle có role phù hợp, keyboard increment/decrement và giới hạn rõ ràng.
 - Khi splitter focus: ArrowLeft tăng width, ArrowRight giảm width, Home/End về min/max, Enter collapse; focus sau collapse về active terminal.
 - Focus trong panel không làm mất focus/session routing của terminal khi người dùng quay lại terminal.
-- Nút Editor/AI enabled để mở container/placeholder đúng; nội dung ghi rõ chức năng chưa tích hợp và không gọi operation ngoài scope.
+- Nút Editor enabled để mở container/placeholder đúng; nội dung ghi rõ chức năng chưa tích hợp và không gọi operation ngoài scope.
 - Tab order không đi vào nội dung panel đã bị collapse.
 
 ## 9. Kiểm thử
@@ -176,7 +174,7 @@ Ma trận native/UI:
 | --- | --- |
 | Startup | Git mở mặc định, terminal vẫn render đúng |
 | Git → Explorer → Git | Panel đổi đúng, Explorer state không mất |
-| Git → Editor → AI | Mỗi placeholder đúng, không gọi operation ngoài scope |
+| Git → Editor → Explorer | Mỗi panel hiển thị đúng, không gọi operation ngoài scope |
 | Collapse/reopen | Terminal mở rộng rồi panel trở lại với width hợp lệ |
 | Editor Normal/Expanded/Normal | Expanded theo bounds, Normal khôi phục width; không đổi terminal session/layout |
 | Resize min/max | Width bị clamp, không overflow/zero-size terminal |
@@ -192,7 +190,7 @@ Ghi actual result riêng cho từng case. Không coi browser preview là bằng 
 ## 10. Tiêu chí hoàn tất
 
 - [ ] Git mở mặc định đã được native xác nhận.
-- [ ] Switch được Git/Explorer/Editor/AI với duy nhất một panel chính visible.
+- [ ] Switch được Git/Explorer/Editor với duy nhất một panel chính visible.
 - [ ] Collapse/reopen hoạt động mà không unmount hoặc terminate terminal session.
 - [ ] Resize có min/max constraint và không gây overflow tại 960 × 600.
 - [ ] Editor Normal/Expanded có geometry đúng và Normal width được giữ.
@@ -204,7 +202,7 @@ Ghi actual result riêng cho từng case. Không coi browser preview là bằng 
 
 ## 11. Bàn giao Phase 5
 
-Phase 5 có thể dùng panel contract này để mount Monaco vào Editor slot. Editor phải giữ model/tab/dirty state trong editor owner; switch panel hoặc collapse right panel không được reset buffer. Diff viewer dùng chung cho Editor, Git và AI phải được bổ sung sau khi file API và editor model được định nghĩa.
+Phase 5 có thể dùng panel contract này để mount Monaco vào Editor slot. Editor phải giữ model/tab/dirty state trong editor owner; switch panel hoặc collapse right panel không được reset buffer. Diff viewer dùng chung cho Editor và Git phải được bổ sung sau khi file API và editor model được định nghĩa.
 
 Tài liệu liên quan:
 

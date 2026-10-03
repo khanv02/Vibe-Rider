@@ -376,4 +376,7 @@ pub fn git_cancel(
     service.cancel(window.label(), &request.workspace_id, &request.operation_id)
 }
 
-pub use operations::{git_add, git_commit, git_diff, git_push, git_restore, git_status};
+pub use operations::{
+    git_add, git_commit, git_create_branch, git_diff, git_push, git_restore, git_status,
+    git_switch_branch,
+};

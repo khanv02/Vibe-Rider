@@ -6,7 +6,7 @@ import {
   RIGHT_PANEL_DEFAULT_STATE,
   targetExpandedWidth,
 } from "./panelLayout";
-import type { EditorPanelSize, RightPanelId, RightPanelState } from "./types";
+import type { EditorPanelSize, RightPanelId, RightPanelSide, RightPanelState } from "./types";
 
 export interface RightPanelController {
   state: RightPanelState;
@@ -16,6 +16,7 @@ export interface RightPanelController {
   closePanel: () => void;
   setPanelWidth: (width: number) => void;
   setEditorSize: (size: EditorPanelSize) => void;
+  setPanelSide: (side: RightPanelSide) => void;
   hydrate: (state: RightPanelState) => void;
 }
 
@@ -67,9 +68,13 @@ export function useRightPanel(bodyWidth: number): RightPanelController {
     });
   }, [bodyWidth]);
 
+  const setPanelSide = useCallback((side: RightPanelSide) => {
+    setState((current) => current.side === side ? current : { ...current, side });
+  }, []);
+
   const hydrate = useCallback((nextState: RightPanelState) => {
     setState(nextState);
   }, []);
 
-  return { state, geometry, selectPanel, togglePanel, closePanel, setPanelWidth, setEditorSize, hydrate };
+  return { state, geometry, selectPanel, togglePanel, closePanel, setPanelWidth, setEditorSize, setPanelSide, hydrate };
 }

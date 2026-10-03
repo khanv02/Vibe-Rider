@@ -40,6 +40,12 @@ pub struct PanelPreferences {
     pub normal_width: f64,
     pub editor_size: String,
     pub expanded_width: Option<f64>,
+    #[serde(default = "default_panel_side")]
+    pub side: String,
+}
+
+fn default_panel_side() -> String {
+    "right".to_string()
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -84,6 +90,7 @@ fn defaults() -> UiPreferences {
             normal_width: 304.0,
             editor_size: "normal".to_string(),
             expanded_width: None,
+            side: default_panel_side(),
         },
     }
 }
@@ -113,9 +120,10 @@ fn validate_ui(mut value: UiPreferences) -> Result<UiPreferences, WorkspaceError
         || value.terminal.visible_pair[0] == value.terminal.visible_pair[1]
         || !matches!(
             value.panel.active_tool.as_str(),
-            "git" | "explorer" | "editor" | "ai"
+            "git" | "explorer" | "editor"
         )
         || !matches!(value.panel.editor_size.as_str(), "normal" | "expanded")
+        || !matches!(value.panel.side.as_str(), "left" | "right")
         || !value.panel.normal_width.is_finite()
         || value.panel.normal_width < 272.0
         || value.panel.normal_width > 480.0
@@ -339,6 +347,10 @@ mod tests {
 
         let mut preferences = defaults();
         preferences.panel.active_tool = "shell".into();
+        assert!(validate_ui(preferences).is_err());
+
+        let mut preferences = defaults();
+        preferences.panel.active_tool = "ai".into();
         assert!(validate_ui(preferences).is_err());
     }
 }

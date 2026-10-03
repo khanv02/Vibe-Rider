@@ -14,6 +14,7 @@ export interface UiPreferences {
     normalWidth: number;
     editorSize: "normal" | "expanded";
     expandedWidth: number | null;
+    side: "left" | "right";
   };
 }
 
@@ -41,6 +42,7 @@ export const DEFAULT_UI_PREFERENCES: UiPreferences = {
     normalWidth: 304,
     editorSize: "normal",
     expandedWidth: null,
+    side: "right",
   },
 };
 
@@ -51,5 +53,6 @@ export function preferencesFromPanel(state: RightPanelState): UiPreferences["pan
     normalWidth: state.rightPanelWidth,
     editorSize: state.editorSize,
     expandedWidth: state.editorExpandedWidth,
+    side: state.side,
   };
 }

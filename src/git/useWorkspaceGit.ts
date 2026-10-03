@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { WorkspaceDescriptor } from "../workspace/types";
-import { formatWorkspaceError } from "../workspace/workspaceApi";
 import {
   commitGit,
+  createGitBranch,
   getGitDiff,
   getGitStatus,
   isTauriRuntime,
@@ -11,8 +11,17 @@ import {
   pushGit,
   restoreGitEntries,
   stageGitEntries,
+  switchGitBranch,
 } from "./gitApi";
-import type { GitDiffSnapshot, GitOperationInfo, GitStatus, GitStatusEntry } from "./types";
+import type { GitDiffSnapshot, GitError, GitOperationInfo, GitStatus, GitStatusEntry } from "./types";
+
+export interface GitFeedback {
+  kind: "info" | "success" | "error";
+  code: string;
+  operation: string;
+  message: string;
+  guidance: string | null;
+}
 
 export interface WorkspaceGitController {
   status: GitStatus | null;
@@ -21,7 +30,8 @@ export interface WorkspaceGitController {
   busy: boolean;
   operation: GitOperationInfo | null;
   loading: boolean;
-  error: string | null;
+  feedback: GitFeedback | null;
+  authVerified: boolean;
   commitMessage: string;
   setCommitMessage: (message: string) => void;
   refresh: () => Promise<void>;
@@ -36,7 +46,35 @@ export interface WorkspaceGitController {
   restore: () => Promise<void>;
   commit: () => Promise<void>;
   push: () => Promise<void>;
+  createBranch: (branchName: string) => Promise<void>;
+  switchBranch: (branchName: string) => Promise<void>;
   cancel: () => Promise<void>;
+  dismissFeedback: () => void;
+}
+
+function feedbackFrom(reason: unknown, operation: string): GitFeedback {
+  const error = typeof reason === "object" && reason !== null
+    ? reason as Partial<GitError>
+    : {};
+  const code = typeof error.code === "string" ? error.code : "GIT_FAILED";
+  const message = typeof error.message === "string" ? error.message : String(reason);
+  const guidance: Record<string, string> = {
+    AUTH_REQUIRED: "Hãy đăng nhập qua SSH/Git Credential Manager rồi thử Push lại. App không lưu password/token.",
+    MISSING_USER_IDENTITY: "Cấu hình git config user.name và git config user.email trước khi Commit.",
+    PERMISSION_DENIED: "Kiểm tra quyền file/repository và credential của remote.",
+    HOOK_FAILED: "Đọc output của Git hook trong thông báo, sửa lỗi rồi thử Commit lại.",
+    INDEX_LOCKED: "Đảm bảo không còn Git process khác chạy; sau đó Refresh status rồi thử lại.",
+    PUSH_REJECTED: "Remote đã có thay đổi; Pull/rebase thủ công trong terminal rồi Refresh trước khi Push.",
+    STALE_STATUS: "Repository đã thay đổi; Refresh status và review lại file trước khi thử lại.",
+    NOTHING_STAGED: "Chọn file rồi Stage trước khi Commit.",
+  };
+  return {
+    kind: "error",
+    code,
+    operation: typeof error.operation === "string" ? error.operation : operation,
+    message,
+    guidance: guidance[code] ?? null,
+  };
 }
 
 export function useWorkspaceGit(
@@ -49,7 +87,8 @@ export function useWorkspaceGit(
   const [busy, setBusy] = useState(false);
   const [operation, setOperation] = useState<GitOperationInfo | null>(null);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [feedback, setFeedback] = useState<GitFeedback | null>(null);
+  const [authVerified, setAuthVerified] = useState(false);
   const [commitMessage, setCommitMessage] = useState("");
   const requestNumber = useRef(0);
   const refreshPromise = useRef<Promise<void> | null>(null);
@@ -73,11 +112,10 @@ export function useWorkspaceGit(
         if (workspaceRef.current?.id !== current.id || next.requestId !== requestId) return;
         statusRef.current = next;
         setStatus(next);
-        setError(null);
         setSelected((previous) => new Set([...previous].filter((id) => next.entries.some((entry) => entry.entryId === id))));
       })
       .catch((reason) => {
-        if (workspaceRef.current?.id === current.id) setError(formatWorkspaceError(reason));
+        if (workspaceRef.current?.id === current.id) setFeedback(feedbackFrom(reason, "status"));
       })
       .finally(() => {
         if (workspaceRef.current?.id === current.id) setLoading(false);
@@ -92,7 +130,8 @@ export function useWorkspaceGit(
     setDiff(null);
     setSelected(new Set());
     setCommitMessage("");
-    setError(null);
+    setFeedback(null);
+    setAuthVerified(false);
     if (!workspace) return;
     void refresh();
     const timer = window.setInterval(() => void refresh(), 3000);
@@ -115,7 +154,7 @@ export function useWorkspaceGit(
         const operations = await listGitOperations(workspace.id);
         if (!cancelled) setOperation(operations.find((item) => item.mutation) ?? operations[0] ?? null);
       } catch (reason) {
-        if (!cancelled) setError(formatWorkspaceError(reason));
+        if (!cancelled) setFeedback(feedbackFrom(reason, "operation"));
       }
     };
     void poll();
@@ -135,16 +174,19 @@ export function useWorkspaceGit(
     });
   }, []);
 
-  const runMutation = useCallback(async (task: () => Promise<unknown>) => {
+  const runMutation = useCallback(async (task: () => Promise<unknown>, operation: string) => {
     if (busy) return;
     setBusy(true);
     setOperation(null);
+    setFeedback({ kind: "info", code: "RUNNING", operation, message: `${operation} đang chạy…`, guidance: null });
     try {
       await task();
       setSelected(new Set());
       await refresh();
+      if (operation === "Push") setAuthVerified(true);
+      setFeedback({ kind: "success", code: "OK", operation, message: `${operation} thành công.`, guidance: null });
     } catch (reason) {
-      setError(formatWorkspaceError(reason));
+      setFeedback(feedbackFrom(reason, operation));
     } finally {
       setBusy(false);
     }
@@ -158,21 +200,20 @@ export function useWorkspaceGit(
 
   const stageEntries = useCallback((entryIds: string[]) => {
     if (!status || !workspace || entryIds.length === 0) return Promise.resolve();
-    return runMutation(() => stageGitEntries(workspace.id, entryIds, status.statusToken));
+    return runMutation(() => stageGitEntries(workspace.id, entryIds, status.statusToken), "Stage");
   }, [runMutation, status, workspace]);
 
   const unstageEntries = useCallback((entryIds: string[]) => {
     if (!status || !workspace || entryIds.length === 0) return Promise.resolve();
-    return runMutation(() => restoreGitEntries(workspace.id, entryIds.map((entryId) => ({ entryId })), status.statusToken, "unstage"));
+    return runMutation(() => restoreGitEntries(workspace.id, entryIds.map((entryId) => ({ entryId })), status.statusToken, "unstage"), "Unstage");
   }, [runMutation, status, workspace]);
 
   const review = useCallback(async (entry: GitStatusEntry, scope: "staged" | "unstaged") => {
     if (!status || !workspace) return;
     try {
-      setError(null);
       setDiff(await getGitDiff(workspace.id, entry.entryId, scope, status.statusToken));
     } catch (reason) {
-      setError(formatWorkspaceError(reason));
+      setFeedback(feedbackFrom(reason, "Review diff"));
     }
   }, [status, workspace]);
 
@@ -196,7 +237,7 @@ export function useWorkspaceGit(
       if (currentEntries.length === 0) return;
       const confirmed = window.confirm("Restore sẽ bỏ các thay đổi đã lưu trên disk về nội dung trong Index. Draft chưa Save của Editor không bị tự động ghi đè. Tiếp tục?");
       if (!confirmed) return;
-      await runMutation(() => restoreGitEntries(currentWorkspace.id, currentEntries.map((entry) => ({ entryId: entry.entryId, restoreToken: entry.restoreToken })), currentStatus.statusToken, "worktree"));
+      await runMutation(() => restoreGitEntries(currentWorkspace.id, currentEntries.map((entry) => ({ entryId: entry.entryId, restoreToken: entry.restoreToken })), currentStatus.statusToken, "worktree"), "Restore");
     })();
   }, [prepareRestore, refresh, runMutation, selected, selectedEntries.length, status, workspace]);
 
@@ -205,21 +246,37 @@ export function useWorkspaceGit(
     return runMutation(() => commitGit(workspace.id, commitMessage, status.statusToken).then((result) => {
       setCommitMessage("");
       return result;
-    }));
+    }), "Commit");
   }, [commitMessage, runMutation, status, workspace]);
 
   const push = useCallback(() => {
     if (!status || !workspace) return Promise.resolve();
-    return runMutation(() => pushGit(workspace.id, status.statusToken));
+    return runMutation(() => pushGit(workspace.id, status.statusToken), "Push");
+  }, [runMutation, status, workspace]);
+
+  const createBranch = useCallback((branchName: string) => {
+    if (!status || !workspace) return Promise.resolve();
+    return runMutation(
+      () => createGitBranch(workspace.id, branchName.trim(), status.statusToken),
+      "Create branch",
+    );
+  }, [runMutation, status, workspace]);
+
+  const switchBranch = useCallback((branchName: string) => {
+    if (!status || !workspace) return Promise.resolve();
+    return runMutation(
+      () => switchGitBranch(workspace.id, branchName, status.statusToken),
+      "Switch branch",
+    );
   }, [runMutation, status, workspace]);
 
   const cancel = useCallback(async () => {
     if (!workspace || !operation) return;
     try {
       await cancelGitOperation(workspace.id, operation.operationId);
-      setError("Đã gửi yêu cầu huỷ Git operation; đang chờ process kết thúc an toàn.");
+      setFeedback({ kind: "info", code: "CANCEL_REQUESTED", operation: operation.operation, message: "Đã gửi yêu cầu huỷ; đang chờ process kết thúc an toàn.", guidance: null });
     } catch (reason) {
-      setError(formatWorkspaceError(reason));
+      setFeedback(feedbackFrom(reason, "Cancel"));
     }
   }, [operation, workspace]);
 
@@ -230,7 +287,8 @@ export function useWorkspaceGit(
     busy,
     operation,
     loading,
-    error,
+    feedback,
+    authVerified,
     commitMessage,
     setCommitMessage,
     refresh,
@@ -245,6 +303,9 @@ export function useWorkspaceGit(
     restore,
     commit,
     push,
+    createBranch,
+    switchBranch,
     cancel,
+    dismissFeedback: () => setFeedback(null),
   };
 }

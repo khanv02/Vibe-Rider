@@ -4,6 +4,7 @@ import { RightPanelResizeHandle } from "./RightPanelResizeHandle";
 import type { TerminalPaneId, TerminalPaneState } from "../terminal/types";
 import { StatusBar } from "./StatusBar";
 import type { GitBranch } from "../git/types";
+import type { RightPanelSide } from "../panels/types";
 
 interface AppLayoutProps {
   terminalWorkspace: ReactNode;
@@ -25,6 +26,8 @@ interface AppLayoutProps {
   terminalStates: Record<TerminalPaneId, TerminalPaneState>;
   workspaceName: string | null;
   gitBranch: GitBranch | null;
+  panelSide: RightPanelSide;
+  onPanelSideChange: (side: RightPanelSide) => void;
 }
 
 export function AppLayout({
@@ -47,6 +50,8 @@ export function AppLayout({
   terminalStates,
   workspaceName,
   gitBranch,
+  panelSide,
+  onPanelSideChange,
 }: AppLayoutProps) {
   const bodyRef = useRef<HTMLElement | null>(null);
 
@@ -97,6 +102,11 @@ export function AppLayout({
         >
           {isOpeningWorkspace ? "Opening…" : "Open Folder"}
         </button>
+        <div className="header-panel-side" aria-label="Tools position">
+          <span className="header-panel-side-label">TOOLS</span>
+          <button className={panelSide === "left" ? "size-button size-button-active" : "size-button"} onClick={() => onPanelSideChange("left")} type="button">Left</button>
+          <button className={panelSide === "right" ? "size-button size-button-active" : "size-button"} onClick={() => onPanelSideChange("right")} type="button">Right</button>
+        </div>
         <button
           aria-controls="right-panel"
           aria-expanded={panelOpen}
@@ -113,7 +123,7 @@ export function AppLayout({
         </div>
       </header>
       <section
-        className={`app-body${panelOpen ? "" : " app-body-panel-collapsed"}`}
+        className={`app-body app-body-panel-${panelSide}${panelOpen ? "" : " app-body-panel-collapsed"}`}
         ref={bodyRef}
         style={{
           "--right-panel-width": `${panelOpen ? panelWidth : 0}px`,
@@ -127,6 +137,7 @@ export function AppLayout({
           minWidth={panelMinWidth}
           onCollapse={collapsePanel}
           onWidthChange={onPanelWidthChange}
+          side={panelSide}
           width={panelWidth}
         />
         <div className={`right-panel-slot${panelOpen ? "" : " right-panel-slot-collapsed"}`}>

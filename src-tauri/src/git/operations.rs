@@ -72,6 +72,14 @@ pub struct GitPushRequest {
     pub status_token: String,
 }
 
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct GitBranchRequest {
+    pub workspace_id: String,
+    pub branch_name: String,
+    pub status_token: String,
+}
+
 #[derive(Clone, Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GitMutationResult {
@@ -511,6 +519,107 @@ pub async fn git_push(
     .await
     .map_err(|error| {
         GitError::new("GIT_WORKER_FAILED", "push", format!("Git worker: {error}"))
+    })??;
+    ensure_active(state.inner(), &workspace_id)?;
+    Ok(result)
+}
+
+#[tauri::command]
+pub async fn git_create_branch(
+    service: State<'_, GitService>,
+    state: State<'_, WorkspaceState>,
+    window: WebviewWindow,
+    request: GitBranchRequest,
+) -> Result<GitMutationResult, GitError> {
+    change_branch(service, state, window, request, true).await
+}
+
+#[tauri::command]
+pub async fn git_switch_branch(
+    service: State<'_, GitService>,
+    state: State<'_, WorkspaceState>,
+    window: WebviewWindow,
+    request: GitBranchRequest,
+) -> Result<GitMutationResult, GitError> {
+    change_branch(service, state, window, request, false).await
+}
+
+async fn change_branch(
+    service: State<'_, GitService>,
+    state: State<'_, WorkspaceState>,
+    window: WebviewWindow,
+    request: GitBranchRequest,
+    create: bool,
+) -> Result<GitMutationResult, GitError> {
+    let operation = if create {
+        "branch-create"
+    } else {
+        "branch-switch"
+    };
+    let branch_name = request.branch_name.trim().to_owned();
+    if branch_name.is_empty() || branch_name.len() > 255 || branch_name.contains('\0') {
+        return Err(GitError::new(
+            "INVALID_BRANCH_NAME",
+            operation,
+            "Tên branch không được rỗng, chứa NUL hoặc dài quá 255 bytes.",
+        ));
+    }
+    let workspace = active_workspace(state.inner(), &request.workspace_id)?;
+    let workspace_id = workspace.id.clone();
+    let status_token = request.status_token;
+    let service = service.inner().clone();
+    let workspace_lease = state
+        .begin_mutation(&workspace.id)
+        .map_err(GitError::from)?;
+    let operation_lease = service.begin(window.label(), &workspace.id, operation, true)?;
+    let result = tauri::async_runtime::spawn_blocking(move || {
+        let _workspace_lease = workspace_lease;
+        let _operation_lease = operation_lease;
+        let runner = service.runner(&workspace.root)?;
+        let context = fresh_context(&workspace, &runner, &_operation_lease.control, None)?;
+        if context.status.status.status_token != status_token {
+            return Err(stale_status());
+        }
+        validate_branch_name(&context.runner, &branch_name, &_operation_lease.control)?;
+        if !create && !context.status.status.entries.is_empty() {
+            return Err(GitError::new(
+                "WORKTREE_DIRTY",
+                "branch-switch",
+                "Không thể đổi branch khi working tree còn thay đổi chưa commit.",
+            ));
+        }
+        let args = if create {
+            vec![
+                OsString::from("switch"),
+                OsString::from("-c"),
+                OsString::from(&branch_name),
+            ]
+        } else {
+            vec![OsString::from("switch"), OsString::from(&branch_name)]
+        };
+        run_args(
+            &context.runner,
+            operation,
+            &args,
+            None,
+            Limits::mutation(),
+            &_operation_lease.control,
+        )?
+        .checked(operation)?;
+        Ok(GitMutationResult {
+            operation_id: _operation_lease.id().to_string(),
+            affected_paths: Vec::new(),
+            commit_id: None,
+            target: Some(branch_name),
+        })
+    })
+    .await
+    .map_err(|error| {
+        GitError::new(
+            "GIT_WORKER_FAILED",
+            operation,
+            format!("Git worker: {error}"),
+        )
     })??;
     ensure_active(state.inner(), &workspace_id)?;
     Ok(result)
@@ -986,6 +1095,28 @@ fn validate_ref_component(value: &str) -> Result<(), GitError> {
             "Configured upstream chứa ref không an toàn.",
         ));
     }
+    Ok(())
+}
+
+fn validate_branch_name(
+    runner: &GitRunner,
+    branch_name: &str,
+    control: &Arc<super::OperationControl>,
+) -> Result<(), GitError> {
+    if branch_name.starts_with('-') || branch_name.contains('\0') {
+        return Err(GitError::new(
+            "INVALID_BRANCH_NAME",
+            "branch",
+            "Tên branch không hợp lệ.",
+        ));
+    }
+    runner
+        .read(
+            "branch-check",
+            &["check-ref-format", "--branch", branch_name],
+            control,
+        )?
+        .checked("branch")?;
     Ok(())
 }
 

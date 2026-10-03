@@ -14,6 +14,10 @@ Kế hoạch phối hợp: [Phase 7 UX Plan](../agents/plans/Phase_7_UX_Plan.md)
 - Git actions chỉ chạy trong Tauri desktop runtime. Browser preview hiển thị cảnh báo rõ ràng thay vì tạo cảm giác action bị hỏng.
 - Git panel có Normal/Expanded, push target dạng có cấu trúc `local → remote/branch`, preview old/new theo scope, cùng tùy chọn List/3 columns cho Staged Changes, Changes và Untracked.
 - Có `Stage all`/`Unstage all`, restore theo entry, disabled reason cho Commit/Push và giữ commit message khi panel đổi trạng thái.
+- Feedback của mỗi operation được giữ lại sau khi kết thúc, có mã lỗi, operation, message, hướng dẫn xử lý, Refresh status và Dismiss. Các nhóm lỗi chính gồm thiếu `user.name/email`, auth, permission, hook, index lock, stale status và push rejected.
+- Activity rail hiển thị avatar GitHub/identity ở đáy thanh tools, nằm ngoài Git workflow. Git panel chỉ mở rộng mục `ACCOUNT` khi cần xem identity, remote và auth state; GitHub remote không tự được coi là đã đăng nhập.
+- Right panel có optional `Left / Right` layout và được lưu cùng UI preferences. Trạng thái auth chỉ chuyển verified sau Push thành công, không đọc hoặc lưu token.
+- Click avatar mở account menu gồm GitHub, Login/Change account và Logout web session. Các action mở browser mặc định qua URL GitHub allowlist; logout web không thể xóa SSH key hoặc Git Credential Manager local vì đó là credential store của hệ điều hành.
 - Branch create/switch, pull/fetch, merge/rebase, stash và conflict resolution vẫn ngoài phạm vi Phase 6.
 - Automated evidence đã pass; native Tauri click-through và dogfooding vẫn là gate chưa hoàn tất.
 
@@ -111,6 +115,10 @@ Thiết kế parser dùng `git status --porcelain=v2 --branch -z --untracked-fil
 
 Git panel có nhóm Staged Changes, Changes và Untracked; mỗi row có Open file, Review diff và action phù hợp. Có thể chuyển giữa List/3 columns, stage all/unstage all và giữ nhóm rõ ràng ở panel hẹp. File đã xóa không có Open file; filename được render như text, không HTML. Commit area giữ message qua panel switch/collapse, chỉ clear sau commit success; Push là action riêng.
 
+Mọi lỗi Git phải còn nhìn thấy sau operation thay vì chỉ biến mất khi refresh. UI hiển thị `code → operation → message → guidance`; ví dụ `MISSING_USER_IDENTITY` hướng dẫn cấu hình `user.name/email`, `AUTH_REQUIRED` hướng dẫn SSH/Credential Manager, `PUSH_REJECTED` hướng dẫn Pull/rebase thủ công. Success cũng được thông báo để user biết Commit/Stage/Push đã thực sự hoàn tất.
+
+Working repository hiển thị workspace name, canonical root path, repository identity và remote host; không hiển thị URL có credential. Account menu dùng web GitHub hiện có, không biến app thành OAuth credential store mới.
+
 Các state cần có: no-workspace, missing-Git, not-repository, unsupported-repository, loading, clean, ready, error/retry, operation-running và stale/incomplete. Có keyboard/focus labels, scroll và path tooltip tại panel hẹp; terminal không bị remount hoặc mất focus chỉ vì status refresh.
 
 ## 6. Diff và shared viewer — Task 6.3
@@ -159,7 +167,7 @@ Commit chỉ dùng index đã review. Message không rỗng sau trim, hỗ trợ
 
 Push hiển thị target có cấu trúc `local branch → remote/branch` trước khi user bấm, tránh layout text rời gây lệch. Backend resolve remote/ref từ config đã kiểm chứng; chỉ push branch hiện tại với refspec cụ thể, không push tất cả branch/tag theo cấu hình mặc định. Thiếu upstream hoặc detached HEAD thì disable và hướng dẫn cấu hình ở terminal; không tự tạo remote/upstream.
 
-Không force push, không tự pull/rebase khi bị reject. Không nhận password/token qua React; dùng cơ chế credential local, vô hiệu terminal prompt để child process không chờ stdin. Credential helper có thể có native UI; timeout/cancel vẫn phải có hiệu lực. Auth/remote/protected-branch/non-fast-forward lỗi giữ nguyên local commit. Loading không khóa terminal hoặc panel navigation; duplicate Push bị chặn.
+Không force push, không tự pull/rebase khi bị reject. Không nhận password/token qua React; dùng cơ chế credential local, vô hiệu terminal prompt để child process không chờ stdin. Credential helper có thể có native UI; timeout/cancel vẫn phải có hiệu lực. Auth/remote/protected-branch/non-fast-forward lỗi giữ nguyên local commit và được phân loại để hướng dẫn user. Loading không khóa terminal hoặc panel navigation; duplicate Push bị chặn.
 
 ## 9. Refresh, races và editor retention — Task 6.6
 

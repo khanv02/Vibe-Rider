@@ -298,7 +298,7 @@ Ma trận nghiệm thu:
 
 ## 12. Bàn giao Phase 4
 
-Phase 4 sẽ biến right panel thành container Git/Explorer/Editor/AI có switch, resize và collapse. Session/pane state của Phase 3 phải tồn tại khi switch panel; đóng panel không được terminate terminal session.
+Phase 4 sẽ biến right panel thành container Git/Explorer/Editor có switch, resize và collapse. Session/pane state của Phase 3 phải tồn tại khi switch panel; đóng panel không được terminate terminal session.
 
 Tài liệu liên quan:
 

@@ -7,6 +7,7 @@ import { GitPanel } from "./GitPanel";
 import type { WorkspaceEditorController } from "../editor/useWorkspaceEditor";
 import type { DirectoryEntry } from "../workspace/types";
 import type { WorkspaceGitController } from "../git/useWorkspaceGit";
+import { GitAccountBadge } from "./GitAccountBadge";
 
 interface RightPanelProps {
   activePanel: RightPanelId;
@@ -29,7 +30,6 @@ const tools: Array<{ icon: string; id: RightPanelId; label: string }> = [
   { icon: "⌘", id: "git", label: "Git" },
   { icon: "◱", id: "explorer", label: "Explorer" },
   { icon: "<>", id: "editor", label: "Editor" },
-  { icon: "✦", id: "ai", label: "AI" },
 ];
 
 export function RightPanel({
@@ -78,8 +78,12 @@ export function RightPanel({
             </button>
           ))}
         </div>
-        <div className="rail-footer" aria-hidden="true">
-          <span className="rail-footer-dot" />
+        <div className="rail-footer">
+          <GitAccountBadge
+            authVerified={git.authVerified}
+            identity={git.status?.identity ?? null}
+            remote={git.status?.remote ?? null}
+          />
         </div>
       </nav>
 
@@ -131,17 +135,6 @@ export function RightPanel({
           <ToolHeading badge={editorSize === "expanded" ? "EXPANDED" : "NORMAL"} id="editor-panel-title" title="Editor" />
           <div className="tool-panel-content editor-panel-content">
             <EditorPanel controller={editor} editorSize={editorSize} onEditorSizeChange={onEditorSizeChange} />
-          </div>
-        </section>
-
-        <section className="tool-panel tool-view" hidden={activePanel !== "ai"} aria-labelledby="ai-panel-title">
-          <ToolHeading badge="PLANNED" id="ai-panel-title" title="AI" />
-          <div className="tool-panel-content">
-            <div className="tool-placeholder">
-              <div className="tool-placeholder-icon" aria-hidden="true">✦</div>
-              <h3>AI panel placeholder</h3>
-              <p>Chat, provider và context actions sẽ được tích hợp ở Phase 8.</p>
-            </div>
           </div>
         </section>
       </div>

@@ -12,6 +12,8 @@ Plan này cụ thể hóa thứ tự triển khai, trách nhiệm code và check
 
 Tasks 6.1–6.6 đã triển khai ở mức core và Git UI review. Panel hiện có Normal/Expanded, push target có cấu trúc, preview old/new, List/3 columns, Stage all/Unstage all và runtime guard khi mở ngoài Tauri. Automated Rust/frontend verification pass; native click-through, local dogfooding và các workflow ngoài scope (branch create/switch, pull/fetch, merge/rebase) chưa hoàn tất.
 
+Review bổ sung: operation feedback hiện giữ lại mã lỗi và hướng dẫn xử lý sau Stage/Unstage/Restore/Commit/Push; activity rail hiển thị avatar identity ở đáy với GitHub/Login/Change account/Logout web menu, còn Git panel có Account và Working repository riêng. Git status trả commit identity và remote provider; đây không phải bằng chứng login GitHub. Auth chỉ được xác nhận sau Push thành công; secrets không đi qua frontend. Optional Left/Right panel layout thuộc UX shell, được preferences lưu riêng. Logout web không xóa credential SSH/Git Credential Manager local.
+
 ## 1. Mục tiêu và baseline
 
 Thay Git placeholder bằng workflow status → review staged/unstaged diff → stage/unstage → commit → push. Git vẫn là supporting tool bên phải; terminal tiếp tục là main workspace. Rust sở hữu Git CLI/process/filesystem boundary, frontend gọi operation có kiểu dữ liệu rõ ràng.

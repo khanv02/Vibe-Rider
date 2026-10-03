@@ -19,6 +19,7 @@ import { RIGHT_PANEL_DEFAULT_STATE } from "./panels/panelLayout";
 import type { TerminalWorkspaceHandle } from "./components/TerminalWorkspace";
 import { cancelGitOperation, listGitOperations, waitForGitIdle } from "./git/gitApi";
 import { useWorkspaceGit } from "./git/useWorkspaceGit";
+import { hasTauriWindowMetadata, isTauriRuntime } from "./tauri/runtime";
 
 function App() {
   const [ipcMessage, setIpcMessage] = useState("Chưa kiểm tra");
@@ -62,6 +63,7 @@ function App() {
           rightPanelWidth: next.panel.normalWidth,
           editorSize: next.panel.editorSize,
           editorExpandedWidth: next.panel.expandedWidth,
+          side: next.panel.side,
         });
         setPreferencesError(snapshot.warning);
         if (snapshot.rememberedWorkspace) {
@@ -136,7 +138,7 @@ function App() {
   }, [editor.prepareWorkspaceChange, prepareGitTransitionCore]);
 
   useEffect(() => {
-    if (!("__TAURI_INTERNALS__" in window)) return;
+    if (!isTauriRuntime() || !hasTauriWindowMetadata()) return;
     let approved = false;
     let unlisten: (() => void) | undefined;
     const closeRequested = getCurrentWindow().onCloseRequested(async (event) => {
@@ -158,6 +160,10 @@ function App() {
   }, []);
 
   async function checkIpc() {
+    if (!isTauriRuntime()) {
+      setIpcMessage("IPC chỉ khả dụng trong desktop app");
+      return;
+    }
     try {
       const response = await invoke<string>("ping");
       setIpcMessage(response);
@@ -250,7 +256,7 @@ function App() {
       rightPanel.togglePanel();
     }
   }, [focusActiveTerminal, rightPanel]);
-  const focusTool = useCallback((panel: "git" | "explorer" | "editor" | "ai") => {
+  const focusTool = useCallback((panel: "git" | "explorer" | "editor") => {
     rightPanel.selectPanel(panel);
     requestAnimationFrame(() => document.getElementById(`${panel}-panel-title`)?.focus());
   }, [rightPanel]);
@@ -278,6 +284,8 @@ function App() {
       terminalStates={terminalStates}
       workspaceName={workspace?.name ?? null}
       gitBranch={git.status?.branch ?? null}
+      panelSide={rightPanel.state.side}
+      onPanelSideChange={rightPanel.setPanelSide}
       terminalWorkspace={
         <TerminalWorkspace
           activePaneId={activePaneId}

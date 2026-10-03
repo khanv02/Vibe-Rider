@@ -22,7 +22,7 @@ Giúp dùng Vibe Rider hằng ngày: thao tác bằng keyboard, layout/focus ổ
 | 7.4 — Restore | Validate remembered workspace, startup state machine, shell policy và fixtures | Adapter workspace/exit cần C0; kiểm operation đang chạy sau 6.1/6.6 |
 | 7.5 — Dogfooding | Chạy vòng sửa → build/test → review diff → commit trong app | Chờ native acceptance và fixture local remote |
 
-Phase 8 có thể thiết kế độc lập nhưng không đưa vào lịch implementation này để giữ hai luồng tập trung. Phase 9/10 chưa bắt đầu trong plan.
+Các phase agent tiếp theo chưa bắt đầu trong plan này để giữ luồng UX tập trung.
 
 Không mở rộng sang editor draft recovery, terminal scrollback/history persistence, tự chạy AI CLI/dev server, command palette, configurable keybindings, theme system hoặc thiết kế lại Git workflow.
 
@@ -111,7 +111,7 @@ Danh sách phím dưới đây là proposal cần kiểm trong Windows WebView2,
 | Layout 1/2/4 | `Ctrl+Alt+1` / `2` / `4` | App, khi không có modal/transition |
 | Focus T1–T4 | `Ctrl+Shift+1` … `4` | Reveal pane rồi focus; không tự Start |
 | Toggle tools | `Ctrl+Alt+B` | App; collapse trả focus về pane đang active |
-| Focus tool | `Ctrl+Alt+G` / `E` / `M` / `A` | Git / Explorer / Editor / AI; Git focus dùng panel thật, AI vẫn là placeholder |
+| Focus tool | `Ctrl+Alt+G` / `E` / `M` | Git / Explorer / Editor |
 | Save active file | `Ctrl+S` | Editor editable; reuse Monaco action hiện có |
 | Save All | Nút hiện có; phím bổ sung sau conflict audit | Editor controller, không global intercept terminal |
 
@@ -155,7 +155,7 @@ interface UiPreferencesV1 {
   };
   panel: {
     open: boolean;
-    activeTool: "git" | "explorer" | "editor" | "ai";
+    activeTool: "git" | "explorer" | "editor";
     normalWidth: number;
     editorSize: "normal" | "expanded";
     expandedWidth: number | null;

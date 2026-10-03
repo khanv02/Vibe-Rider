@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { KeyboardEvent, PointerEvent } from "react";
+import type { RightPanelSide } from "../panels/types";
 
 interface RightPanelResizeHandleProps {
   disabled: boolean;
@@ -8,6 +9,7 @@ interface RightPanelResizeHandleProps {
   onCollapse: () => void;
   onWidthChange: (width: number) => void;
   width: number;
+  side: RightPanelSide;
 }
 
 export function RightPanelResizeHandle({
@@ -16,6 +18,7 @@ export function RightPanelResizeHandle({
   minWidth,
   onCollapse,
   onWidthChange,
+  side,
   width,
 }: RightPanelResizeHandleProps) {
   const handleRef = useRef<HTMLDivElement | null>(null);
@@ -104,15 +107,15 @@ export function RightPanelResizeHandle({
   function onPointerMove(event: PointerEvent<HTMLDivElement>) {
     const drag = dragRef.current;
     if (!drag || drag.pointerId !== event.pointerId) return;
-    scheduleWidth(drag.startWidth + drag.startX - event.clientX);
+    scheduleWidth(drag.startWidth + (side === "left" ? event.clientX - drag.startX : drag.startX - event.clientX));
   }
 
   function onKeyDown(event: KeyboardEvent<HTMLDivElement>) {
     if (disabled) return;
-    if (event.key === "ArrowLeft") {
+    if ((side === "right" && event.key === "ArrowLeft") || (side === "left" && event.key === "ArrowRight")) {
       event.preventDefault();
       onWidthChange(Math.min(maxWidth, width + 10));
-    } else if (event.key === "ArrowRight") {
+    } else if ((side === "right" && event.key === "ArrowRight") || (side === "left" && event.key === "ArrowLeft")) {
       event.preventDefault();
       onWidthChange(Math.max(minWidth, width - 10));
     } else if (event.key === "Home") {

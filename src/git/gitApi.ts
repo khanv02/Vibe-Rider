@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import { desktopRuntimeError, isTauriRuntime } from "../tauri/runtime";
 import type {
   GitDiffSnapshot,
   GitMutationResult,
@@ -6,14 +7,13 @@ import type {
   GitStatus,
 } from "./types";
 
-export function isTauriRuntime() {
-  return "__TAURI_INTERNALS__" in window;
-}
+export { isTauriRuntime } from "../tauri/runtime";
 
 export function getGitStatus(
   workspaceId: string,
   requestId: string,
 ): Promise<GitStatus> {
+  if (!isTauriRuntime()) return Promise.reject(desktopRuntimeError());
   return invoke<GitStatus>("git_status", { request: { workspaceId, requestId } });
 }
 
@@ -23,10 +23,12 @@ export function getGitDiff(
   scope: "staged" | "unstaged",
   statusToken: string,
 ): Promise<GitDiffSnapshot> {
+  if (!isTauriRuntime()) return Promise.reject(desktopRuntimeError());
   return invoke<GitDiffSnapshot>("git_diff", { request: { workspaceId, entryId, scope, statusToken } });
 }
 
 export function stageGitEntries(workspaceId: string, entryIds: string[], statusToken: string): Promise<GitMutationResult> {
+  if (!isTauriRuntime()) return Promise.reject(desktopRuntimeError());
   return invoke<GitMutationResult>("git_add", { request: { workspaceId, entryIds, statusToken } });
 }
 
@@ -36,15 +38,28 @@ export function restoreGitEntries(
   statusToken: string,
   mode: "unstage" | "worktree",
 ): Promise<GitMutationResult> {
+  if (!isTauriRuntime()) return Promise.reject(desktopRuntimeError());
   return invoke<GitMutationResult>("git_restore", { request: { workspaceId, selections, statusToken, mode } });
 }
 
 export function commitGit(workspaceId: string, message: string, statusToken: string): Promise<GitMutationResult> {
+  if (!isTauriRuntime()) return Promise.reject(desktopRuntimeError());
   return invoke<GitMutationResult>("git_commit", { request: { workspaceId, message, statusToken } });
 }
 
 export function pushGit(workspaceId: string, statusToken: string): Promise<GitMutationResult> {
+  if (!isTauriRuntime()) return Promise.reject(desktopRuntimeError());
   return invoke<GitMutationResult>("git_push", { request: { workspaceId, statusToken } });
+}
+
+export function createGitBranch(workspaceId: string, branchName: string, statusToken: string): Promise<GitMutationResult> {
+  if (!isTauriRuntime()) return Promise.reject(desktopRuntimeError());
+  return invoke<GitMutationResult>("git_create_branch", { request: { workspaceId, branchName, statusToken } });
+}
+
+export function switchGitBranch(workspaceId: string, branchName: string, statusToken: string): Promise<GitMutationResult> {
+  if (!isTauriRuntime()) return Promise.reject(desktopRuntimeError());
+  return invoke<GitMutationResult>("git_switch_branch", { request: { workspaceId, branchName, statusToken } });
 }
 
 export function listGitOperations(workspaceId: string): Promise<GitOperationInfo[]> {
@@ -53,6 +68,7 @@ export function listGitOperations(workspaceId: string): Promise<GitOperationInfo
 }
 
 export function cancelGitOperation(workspaceId: string, operationId: string): Promise<boolean> {
+  if (!isTauriRuntime()) return Promise.reject(desktopRuntimeError());
   return invoke<boolean>("git_cancel", { request: { workspaceId, operationId } });
 }
 

@@ -19,6 +19,7 @@ export const RIGHT_PANEL_DEFAULT_STATE: RightPanelState = {
   rightPanelWidth: RIGHT_PANEL_DEFAULT_WIDTH,
   editorSize: "normal",
   editorExpandedWidth: null,
+  side: "right",
 };
 
 export function clamp(value: number, min: number, max: number): number {

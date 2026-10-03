@@ -61,12 +61,13 @@ impl GitOutput {
         if self.exit_code == Some(0) {
             return Ok(self);
         }
+        let stderr = redact(&String::from_utf8_lossy(&self.stderr));
         let mut error = GitError::new(
-            "GIT_FAILED",
+            classify_failure(operation, &stderr),
             operation,
             format!(
                 "Git {operation} thất bại: {}{}",
-                redact(&String::from_utf8_lossy(&self.stderr)),
+                stderr,
                 if self.truncated {
                     " (output đã rút gọn)"
                 } else {
@@ -77,6 +78,45 @@ impl GitOutput {
         error.exit_code = self.exit_code;
         Err(error)
     }
+}
+
+fn classify_failure(operation: &str, stderr: &str) -> &'static str {
+    let lower = stderr.to_ascii_lowercase();
+    if lower.contains("please tell me who you are")
+        || lower.contains("user.email")
+        || lower.contains("user.name")
+    {
+        return "MISSING_USER_IDENTITY";
+    }
+    if lower.contains("authentication failed")
+        || lower.contains("authentication required")
+        || lower.contains("could not read username")
+        || lower.contains("terminal prompts disabled")
+        || lower.contains("invalid username or token")
+    {
+        return "AUTH_REQUIRED";
+    }
+    if lower.contains("permission denied") || lower.contains("access denied") {
+        return "PERMISSION_DENIED";
+    }
+    if lower.contains("hook declined")
+        || lower.contains("pre-commit hook")
+        || lower.contains("commit-msg hook")
+    {
+        return "HOOK_FAILED";
+    }
+    if lower.contains("index.lock") || lower.contains("unable to create") && lower.contains("lock")
+    {
+        return "INDEX_LOCKED";
+    }
+    if operation == "push"
+        && (lower.contains("rejected")
+            || lower.contains("non-fast-forward")
+            || lower.contains("failed to push some refs"))
+    {
+        return "PUSH_REJECTED";
+    }
+    "GIT_FAILED"
 }
 
 pub(super) fn resolve_git() -> Result<PathBuf, GitError> {
@@ -441,6 +481,32 @@ mod tests {
         let diagnostic = redact("fatal https://user:secret@example.com/repo?token=hidden rejected");
         assert!(!diagnostic.contains("secret") && !diagnostic.contains("hidden"));
         assert!(diagnostic.contains("example.com/repo"));
+    }
+
+    #[test]
+    fn classifies_actionable_git_failures_without_exposing_credentials() {
+        assert_eq!(
+            classify_failure(
+                "commit",
+                "Author identity unknown; please tell me who you are."
+            ),
+            "MISSING_USER_IDENTITY"
+        );
+        assert_eq!(
+            classify_failure(
+                "push",
+                "fatal: Authentication failed for 'https://example.com/repo'"
+            ),
+            "AUTH_REQUIRED"
+        );
+        assert_eq!(
+            classify_failure("commit", "error: cannot lock ref; index.lock exists"),
+            "INDEX_LOCKED"
+        );
+        assert_eq!(
+            classify_failure("push", "! [rejected] main -> main (non-fast-forward)"),
+            "PUSH_REJECTED"
+        );
     }
 
     #[test]

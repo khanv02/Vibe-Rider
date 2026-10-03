@@ -6,12 +6,12 @@ Nguồn yêu cầu: [Project Instruction](../rules/Project_Instruction.md), mụ
 
 ## 1. Mục tiêu và baseline
 
-Xây dựng right panel có thể chuyển giữa Git, Explorer, Editor và AI, kéo thay đổi chiều rộng, đóng/mở và mở rộng vùng Editor. Terminal vẫn là main workspace; panel actions chỉ thay đổi presentation/geometry, giữ session ID/PID, xterm, buffer, routing và layout 1/2/4.
+Xây dựng right panel có thể chuyển giữa Git, Explorer và Editor, kéo thay đổi chiều rộng, đóng/mở và mở rộng vùng Editor. Terminal vẫn là main workspace; panel actions chỉ thay đổi presentation/geometry, giữ session ID/PID, xterm, buffer, routing và layout 1/2/4.
 
 Code hiện tại:
 
 - `App.tsx` giữ `useRightPanel` ở App; default Git, mở folder thành công hoặc lỗi chuyển sang Explorer. Explorer controller vẫn nằm ở App.
-- `RightPanel.tsx` có activity rail bốn tool, Explorer thật và Git/Editor/AI placeholder; tool slots được giữ mounted và chỉ một slot visible.
+- `RightPanel.tsx` có activity rail ba tool, Explorer thật và Git/Editor placeholder; tool slots được giữ mounted và chỉ một slot visible.
 - `AppLayout.tsx` đặt terminal, splitter và right panel trong cùng body; body width được đo bằng ResizeObserver và truyền vào geometry controller.
 - `styles.css` dùng CSS variables cho panel/splitter width, hỗ trợ full collapse và không còn media query ghi đè width resize.
 - `TerminalWorkspace.tsx` giữ bốn `TerminalPane` với key T1–T4; `TerminalPane.tsx` có ResizeObserver/FitAddon, bỏ fit khi host zero-size và ACK output riêng.
@@ -23,13 +23,12 @@ Phase 3 có implementation và automated results được ghi nhận; native mul
 
 | Hạng mục | Quyết định Phase 4 |
 | --- | --- |
-| Tool IDs | `git`, `explorer`, `editor`, `ai`; duy nhất một nội dung chính visible |
+| Tool IDs | `git`, `explorer`, `editor`; duy nhất một nội dung chính visible |
 | Startup | Git mở mặc định; toàn bộ panel UI state nằm trong memory |
 | Explorer | Tái sử dụng controller và tree của Phase 1; giữ cache, expanded paths, selection và scroll khi ẩn |
 | Git | Giữ placeholder/IPC proof hiện có; Git operations thuộc Phase 6 |
 | Editor | Container/placeholder có Normal/Expanded; Monaco, tabs và file API thuộc Phase 5 |
-| AI | Container/placeholder; chat/provider/context thuộc Phase 8 |
-| Rail | Cả bốn nút enabled để mở đúng nội dung/placeholder; placeholder ghi rõ chức năng chưa tích hợp |
+| Rail | Ba nút enabled để mở đúng nội dung/placeholder; placeholder ghi rõ chức năng chưa tích hợp |
 | Collapse | Đóng toàn bộ right panel, gồm rail/content và resize handle; terminal nhận toàn bộ body width |
 | Reopen | Header có nút Show/Hide tools luôn truy cập được; mở lại tool, width và editor mode trước khi collapse |
 | Resize | Kéo splitter phía trái panel; width được giới hạn theo body width thực tế |
@@ -67,7 +66,7 @@ App
        │    ├─ TerminalWorkspace → T1–T4 luôn giữ identity
        │    ├─ RightPanelResizeHandle
        │    └─ RightPanel
-       │         ├─ Activity rail: Git / Explorer / Editor / AI
+       │         ├─ Activity rail: Git / Explorer / Editor
        │         └─ Tool slots: một visible, slot đã mount được giữ
        └─ StatusBar
 
@@ -76,14 +75,14 @@ Panel action → UI state → CSS geometry
   → terminal_resize của đúng session khi rows/cols thực sự đổi
 ```
 
-Right-panel state không chứa PTY handles, xterm instance, output bytes, filesystem cache, Monaco model hoặc AI messages. `useWorkspaceExplorer` tiếp tục ở App để switch panel không tạo controller/request generation mới.
+Right-panel state không chứa PTY handles, xterm instance, output bytes, filesystem cache hoặc Monaco model. `useWorkspaceExplorer` tiếp tục ở App để switch panel không tạo controller/request generation mới.
 
 Giữ terminal subtree cùng parent/key qua cả open/closed/expanded state. RightPanel được giữ mounted và ẩn bằng CSS/`hidden`; không dùng hai nhánh AppLayout với cấu trúc terminal khác nhau. Tool slots đã mount giữ identity; chỉ một slot visible. React gắn state với identity/vị trí trong cây render. [React: preserving state](https://react.dev/learn/preserving-and-resetting-state).
 
 ## 5. State và action contract
 
 ```ts
-type RightPanelId = "git" | "explorer" | "editor" | "ai";
+type RightPanelId = "git" | "explorer" | "editor";
 type EditorPanelSize = "normal" | "expanded";
 
 interface RightPanelState {
@@ -151,7 +150,7 @@ Pointer capture định tuyến các event tiếp theo về element đã capture
 
 - Splitter focusable, `role="separator"`, `aria-orientation="vertical"`, accessible name, `aria-controls` và `aria-valuemin/max/now`; `aria-valuetext` mô tả panel width bằng pixels.
 - Khi splitter được focus: ArrowLeft tăng width, ArrowRight giảm width, bước 10 px; Home/End về min/max; Enter collapse. Chỉ xử lý phím của control đang focus.
-- Rail dùng buttons với trạng thái active; không thêm tab semantics nếu chưa làm đủ tab keyboard contract. Editor/AI click mở placeholder thật.
+- Rail dùng buttons với trạng thái active; không thêm tab semantics nếu chưa làm đủ tab keyboard contract. Editor click mở placeholder thật.
 - Header toggle có `aria-expanded` và `aria-controls`; collapse ẩn cả rail/content/splitter khỏi Tab order.
 - Khi đóng panel chứa focus hoặc kết thúc keyboard collapse, đưa focus về xterm của terminal active. Mở/chọn panel giữ focus ở control người dùng vừa bấm; drag/fit không tự cướp focus khi người dùng đang thao tác panel.
 - Cần đường focus rõ từ app shell tới terminal active; kiểm chứng DOM input focus thực tế, không chỉ active border. Bổ sung hook/callback/ref focus nhỏ nếu wiring hiện tại chưa đủ.
@@ -166,7 +165,7 @@ Window Splitter pattern là tham khảo cho separator keyboard/ARIA, cần tự 
 - Explorer controller sống ở App; panel/Explorer đã mount được giữ khi ẩn. Cache, expanded paths, selectedPath và DOM scroll được giữ; switch panel không tự refresh hoặc re-read cây đã cache.
 - Loading/error/pending Explorer request tiếp tục thuộc workspace/generation cũ; khi workspace đổi, reset/loại stale response theo contract Phase 1, không thêm cache dùng chung các root.
 - App close và workspace cleanup vẫn theo Rust terminal manager. Switch/close panel không đi vào session teardown.
-- Future Monaco model/draft/AI conversation có domain owner riêng ở phase tương ứng; Phase 4 chỉ chuẩn bị slot và giữ presentation state đã có.
+- Future Monaco model/draft state có domain owner riêng ở phase tương ứng; Phase 4 chỉ chuẩn bị slot và giữ presentation state đã có.
 
 ## 9. Files cần tạo/sửa
 
@@ -176,7 +175,7 @@ Window Splitter pattern là tham khảo cho separator keyboard/ARIA, cần tự 
 | `src/panels/panelLayout.ts` — mới | Defaults, pure width bounds/clamp và state transition rules |
 | `src/panels/useRightPanel.ts` — mới | App-owned UI controller, requested/effective widths và actions |
 | `src/components/RightPanelResizeHandle.tsx` — mới | Pointer capture/keyboard splitter, drag cleanup và accessibility |
-| `src/components/RightPanel.tsx` | Rail bốn tools, stable slots, collapse header và Editor Normal/Expanded |
+| `src/components/RightPanel.tsx` | Rail ba tools, stable slots, collapse header và Editor Normal/Expanded |
 | `src/App.tsx` | Integrate panel controller; giữ Explorer/terminal ownership; folder selection/error flow |
 | `src/components/AppLayout.tsx` | Grid geometry, body measurement, stable splitter/panel children và header toggle |
 | `src/components/ExplorerPanel.tsx` | Chỉ sửa nếu cần scroll/header integration; giữ filesystem semantics |
@@ -191,7 +190,7 @@ Phase 4 không cần thêm Rust command/capability, Monaco/provider/Git service 
 | Task | Công việc | Điểm kiểm chứng |
 | --- | --- | --- |
 | **4.1 — Panel contract** | IDs/state/actions, default Git, requested/effective geometry, App ownership | Default đúng, invalid widths bị reject; panel state không chứa domain state; chưa thay terminal identity |
-| **4.2 — Switch panel** | Enable bốn rail tools, placeholder rõ, stable visible slots và workspace flow | Đúng một tool visible; Explorer cache/selection/scroll giữ qua switch; Cancel giữ panel state |
+| **4.2 — Switch panel** | Enable ba rail tools, placeholder rõ, stable visible slots và workspace flow | Đúng một tool visible; Explorer cache/selection/scroll giữ qua switch; Cancel giữ panel state |
 | **4.3 — Resize/collapse** | Splitter pointer/keyboard, bounds, header reopen, Editor Normal/Expanded | Drag đúng hướng/clamp/cleanup; full collapse cấp toàn body width cho terminal; reopen/Normal trả width đúng |
 | **4.4 — State retention & verification** | Focus/fit integration, terminal+Explorer regressions, min-window/native QA, docs evidence | Session/PID/buffer không đổi, hidden ACK chạy, actual focus đúng, không overflow; native matrix có kết quả |
 
@@ -209,7 +208,7 @@ Thứ tự: `4.1 → 4.2 → 4.3 → 4.4 → nghiệm thu Phase 4 → Phase 5`.
 - Còn lại: native click-through theo ma trận dưới đây; frontend chưa có test runner nên pure rules chưa có automated suite riêng.
 
 - Pure rules cần bổ sung khi có runner: normal/expanded bounds, small/zero body, invalid width, restore requested width sau window shrink/grow; switch/collapse defaults và action transitions.
-- Frontend integration: bốn tools, một visible, scroll/cache retention, collapse/reopen Tab order/focus, pointer cancel/lost capture; mock IO xác nhận panel action không gọi terminal spawn/close.
+- Frontend integration: ba tools, một visible, scroll/cache retention, collapse/reopen Tab order/focus, pointer cancel/lost capture; mock IO xác nhận panel action không gọi terminal spawn/close.
 - Resize integration: thay body/panel width làm fit đúng pane visible, dedup rows/cols, hidden pane không fit zero-size; input/output/ACK vẫn đúng session.
 - Thêm meaningful tests cho bounds/lifecycle nếu implementation cần; không chỉ test snapshot tên class. Chọn tooling tương thích dependencies khi triển khai, không tự nâng stack để dùng runner mới nhất.
 
@@ -226,7 +225,7 @@ Chạy frontend tests theo command được chốt khi có runner. Rust tests/ch
 | Case | Expected result |
 | --- | --- |
 | Startup, chưa mở workspace | Git mở 304 px khi bounds cho phép; bốn terminal idle; placeholder chính xác |
-| Git → Explorer → Editor → AI | Một tool visible; Editor/AI có placeholder dùng được; không tự gọi Git/provider/file write |
+| Git → Explorer → Editor | Một tool visible; Editor có placeholder dùng được; không tự gọi Git/provider/file write |
 | Explorer expand/select/scroll → tool khác → Explorer | Cache/expanded/selection/scroll giữ nguyên, không refetch chỉ do switch |
 | Full collapse → Header Show tools | Panel+rail+splitter biến mất; terminal nhận toàn body; reopen đúng tool và clamped width |
 | Pointer kéo trái/phải, quá min/max | Đúng chiều; width bị clamp; không select terminal text hoặc gửi input |
@@ -245,7 +244,7 @@ Chạy frontend tests theo command được chốt khi có runner. Rust tests/ch
 
 ### Checklist hoàn tất
 
-- [ ] Git mở mặc định; switch đủ bốn tools với một nội dung visible.
+- [ ] Git mở mặc định; switch đủ ba tools với một nội dung visible.
 - [ ] Full collapse/header reopen giữ tool/width và trả diện tích cho terminal.
 - [ ] Pointer/keyboard resize có bounds và cleanup đầy đủ.
 - [ ] Editor Normal/Expanded hoạt động, Normal width được khôi phục.
@@ -258,6 +257,6 @@ Chạy frontend tests theo command được chốt khi có runner. Rust tests/ch
 
 ## 12. Bàn giao Phase 5 và kiến thức đạt được
 
-Phase 5 nhận Editor slot có Normal/Expanded, panel owner và visibility lifecycle ổn định; sau đó mới tích hợp Monaco, file API, models/tabs/dirty/save và Diff Viewer. Phase 6/8 thay Git/AI placeholder bằng controller/service tương ứng, không cần thay cơ chế dock/splitter của Phase 4.
+Phase 5 nhận Editor slot có Normal/Expanded, panel owner và visibility lifecycle ổn định; sau đó mới tích hợp Monaco, file API, models/tabs/dirty/save và Diff Viewer. Phase 6 thay Git placeholder bằng controller/service tương ứng, không cần thay cơ chế dock/splitter của Phase 4.
 
 Concept cần giải thích được: UI geometry khác process ownership, collapse khác unmount, width preference khác rendered width, focus khác selected pane. Những nguyên tắc này dùng cho sidebar/drawer, editor tabs và dashboard có nhiều nội dung chạy đồng thời.

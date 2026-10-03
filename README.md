@@ -59,7 +59,7 @@ Chi tiết implementation, actual results và checklist release: [Phase 3 — Fo
 
 ### Phase 4 — Right Panel
 
-Đã hoàn tất frontend contract và UI container: panel bên phải chuyển giữa Git/Explorer/Editor/AI, kéo đổi chiều rộng, đóng/mở toàn bộ và có Editor Normal/Expanded. Explorer dùng chức năng hiện có; Git, Editor và AI là container/placeholder chờ phase tương ứng. Các slot được giữ mounted để bảo toàn terminal session/buffer và Explorer state.
+Đã hoàn tất frontend contract và UI container: panel bên phải chuyển giữa Git/Explorer/Editor, kéo đổi chiều rộng, đóng/mở toàn bộ và có Editor Normal/Expanded. Explorer dùng chức năng hiện có; Git và Editor là các panel supporting tools. Các slot được giữ mounted để bảo toàn terminal session/buffer và Explorer state.
 
 - Git mở mặc định; click lại tool đang active giữ panel mở. Collapse chỉ qua Hide tools hoặc splitter.
 - Resize có splitter pointer/keyboard, giới hạn theo viewport và không làm thay đổi terminal session.
@@ -82,7 +82,7 @@ Thiết kế, DTO, files và checkpoints: [Phase 5 Editor Plan](agents/plans/Pha
 
 ### Phase 6 — Git
 
-Implementation update: Git status/branch, scoped diff, stage/unstage/restore, reviewed commit, upstream push, refresh and editor disk-change handling are implemented. Git UI review thêm Normal/Expanded, structured push target, old/new preview, List/3 columns và Stage all/Unstage all. Automated checks pass; native acceptance remains pending.
+Implementation update: Git status/branch, scoped diff, stage/unstage/restore, reviewed commit, upstream push, refresh and editor disk-change handling are implemented. Git UI review thêm Normal/Expanded, structured push target, old/new preview, List/3 columns, Stage all/Unstage all và operation feedback có error code/guidance. Activity rail có avatar GitHub/identity ở đáy với menu GitHub/Login/Change account/Logout; Git panel có Account và Working repository riêng; Right panel hỗ trợ Left/Right optional layout. Auth chỉ verified sau Push thành công. Automated checks pass; native acceptance remains pending.
 
 Git status/branch, staged/unstaged diff qua Shared Diff Viewer, stage/unstage/restore, reviewed commit/push và refresh giữ dirty editor buffer đã triển khai. Automated checks đạt; native acceptance Phase 3/4/5 vẫn là điều kiện chuyển phase.
 
@@ -107,7 +107,9 @@ Fast
 Developer Controlled
 ```
 
-Terminal là main workspace. Git, Explorer, Editor và AI là supporting tools ở bên phải. Ứng dụng không nhằm trở thành bản sao đầy đủ của VS Code hoặc một cloud IDE.
+Terminal là main workspace. Git, Explorer và Editor là supporting tools ở bên phải hoặc bên trái theo layout preference. Ứng dụng không nhằm trở thành bản sao đầy đủ của VS Code hoặc một cloud IDE.
+
+AI được sử dụng chủ yếu qua các CLI chạy trong terminal; project không tích hợp AI chat/provider riêng trong giao diện.
 
 ## Layout hiện tại
 
@@ -122,7 +124,7 @@ Terminal là main workspace. Git, Explorer, Editor và AI là supporting tools �
 └─────────────────────────────────────────────────────┘
 ```
 
-Terminal Core đã spawn/close PowerShell PTY thật, render output qua xterm.js, nhận input/control bytes và resize theo pane. Git vẫn là placeholder. Explorer hiện hiển thị workspace context và cây thư mục lazy-loaded sau khi mở folder.
+Terminal Core đã spawn/close PowerShell PTY thật, render output qua xterm.js, nhận input/control bytes và resize theo pane. Right panel hiện chỉ gồm Git, Explorer và Editor; có thể đặt ở bên trái hoặc bên phải theo layout preference. Explorer hiển thị workspace context và cây thư mục lazy-loaded sau khi mở folder.
 
 ## Kiến trúc hiện tại
 
@@ -336,7 +338,7 @@ src/
 ├─ components/
 │  ├─ AppLayout.tsx                     # Header, body grid, splitter và status bar host
 │  ├─ TerminalWorkspace.tsx             # Grid bốn terminal và layout 1/2/4
-│  ├─ RightPanel.tsx                    # Rail bốn tool, stable slots và workspace context
+│  ├─ RightPanel.tsx                    # Rail ba tool, stable slots và workspace context
 │  ├─ RightPanelResizeHandle.tsx        # Pointer/keyboard resize và ARIA separator
 │  ├─ ExplorerPanel.tsx                 # Explorer tree, states, refresh và selection
 │  ├─ ExplorerTreeNode.tsx              # Node lazy-loaded và retry
@@ -404,7 +406,6 @@ Không sửa trực tiếp file sinh tự động trong `src-tauri/gen/schemas`;
   → 5 Editor
   → 6 Git
   → 7 UX
-  → 8 AI Chat
   → 9 Read-only Agent
   → 10 Coding Agent
 ```
@@ -418,8 +419,7 @@ Không sửa trực tiếp file sinh tự động trong `src-tauri/gen/schemas`;
 | 4 — Right Panel | Frontend switch/collapse/resize đã triển khai; native state-retention smoke đang chờ |
 | 5 — Editor | Core đã triển khai; Monaco, tabs, safe save, dirty state và read-only diff; native click-through đang chờ |
 | 6 — Git | Core status/diff, stage/unstage/restore, commit/push và refresh đã triển khai; native acceptance còn chờ |
-| 7 — UX | Shortcut, persistence và dogfooding chính IDE |
-| 8 — AI Chat | Streaming chat với context do user chọn |
+| 7 — UX | Shortcut, persistence, panel layout và dogfooding chính IDE |
 | 9 — Read-only Agent | `read_file`, `list_directory`, `search_text` và read-only Git tools |
 | 10 — Coding Agent | Patch review, Accept/Reject, permission và Run command |
 

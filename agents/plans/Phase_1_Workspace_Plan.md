@@ -33,7 +33,7 @@ Task 0.4 đã có native startup evidence. Phase 1 đã pass frontend build, Rus
 | Refresh | Thực hiện thủ công; chưa có filesystem watcher |
 | Khôi phục workspace | Để Phase 7; chưa lưu workspace lên đĩa |
 
-Resize/collapse panel tổng quát thuộc Phase 4; đọc nội dung và ghi file thuộc Phase 5. Terminal thật, Git operations, search và AI giữ đúng thứ tự roadmap.
+Resize/collapse panel tổng quát thuộc Phase 4; đọc nội dung và ghi file thuộc Phase 5. Terminal thật, Git operations và search giữ đúng thứ tự roadmap.
 
 Chọn dialog chạy từ Rust để đường dẫn mở workspace xuất phát từ lựa chọn trong native picker. Frontend không được truyền một root bất kỳ vào command mở workspace. Dùng `tauri-plugin-dialog` phía Rust và `serde` để serialize contract; không cần thêm npm dialog package hoặc filesystem plugin cho flow này. Tauri hỗ trợ dialog ở cả Rust và JavaScript, với npm package cần khi gọi từ JavaScript. [Tauri Dialog](https://v2.tauri.app/plugin/dialog/).
 

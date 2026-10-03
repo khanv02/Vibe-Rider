@@ -270,7 +270,7 @@ Frontend chưa có test runner riêng; `npm run build`, Rust tests/clippy và `t
 | Open file TS/JSON/Rust và path có dấu/khoảng trắng | Đúng content/language/path, Editor Normal, terminal giữ session |
 | Open lặp file và hai file cùng basename | Một model/file, phân biệt tabs, không mất draft |
 | Edit A → B → A; Undo/Redo | Text/history/cursor/scroll đúng; Undo về baseline clean |
-| Switch bốn tools; bấm active icon; collapse/reopen | Không tools tự hide ngoài rule đã xác nhận; models không reset |
+| Switch ba tools; bấm active icon; collapse/reopen | Không tools tự hide ngoài rule đã xác nhận; models không reset |
 | Layout `4 → 1 → 2 → 4`; resize/Expanded ở `960 × 600` | Bốn pane khôi phục, terminal và Monaco có viewport dùng được; focus không bị cướp |
 | Save UTF-8/BOM/LF/CRLF/no-final-newline | Rust read-back xác nhận bytes; không normalize ngoài policy |
 | Save pending rồi edit thêm hoặc spam Save | Không duplicate commit; edit sau snapshot vẫn dirty |

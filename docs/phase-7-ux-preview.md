@@ -8,13 +8,16 @@ Kế hoạch: [Phase 7 UX Plan](../agents/plans/Phase_7_UX_Plan.md). Phase 6 ph�
 
 - Layout terminal `1 / 2 / 4`, active pane và visible pair được App sở hữu; đổi layout không remount PTY.
 - Terminal có explicit focus handle. Collapse tools trả focus về pane active; shortcuts gọi đúng layout, pane hoặc tool.
-- Shortcuts hiện có: `Ctrl+Alt+1/2/4` đổi layout, `Ctrl+Shift+1..4` focus pane, `Ctrl+Alt+B` ẩn/hiện tools, `Ctrl+Alt+G/E/M/A` focus Git/Explorer/Editor/AI.
+- Shortcuts hiện có: `Ctrl+Alt+1/2/4` đổi layout, `Ctrl+Shift+1..4` focus pane, `Ctrl+Alt+B` ẩn/hiện tools, `Ctrl+Alt+G/E/M` focus Git/Explorer/Editor.
 - Shortcut bị chặn trong modal; text input/IME, Monaco và xterm giữ input thông thường. `Ctrl+S` vẫn do Monaco xử lý khi Editor focus.
 - UI preferences version `1` gồm layout, pane, panel, width và Editor mode. Native lưu JSON trong app config directory qua Rust, giới hạn 64 KiB, validate enum/width/pair và replace có backup.
 - Settings load/write có sequence debounce ở frontend; lỗi đọc/ghi chỉ tạo notice, không làm crash app. Browser preview có localStorage fallback.
 - Workspace đã mở được nhớ sau khi backend commit thành công. Startup restore dùng Rust canonicalization và `WorkspaceState`, không nhận path tùy ý từ frontend; chỉ spawn một shell mới ở pane active sau restore.
 - Remembered workspace lỗi, mất hoặc không đọc được chuyển về error state và cho phép Open Folder; không replay command, output, PID hoặc draft cũ.
 - Git UI review đã bổ sung runtime guard cho browser preview, Normal/Expanded, push target có cấu trúc `local → remote/branch`, preview old/new, tùy chọn List/3 columns và Stage all/Unstage all. Commit/Push hiển thị lý do disabled; branch create/switch vẫn ngoài scope.
+- Git operation feedback giữ lại success/error sau action, có error code, hướng dẫn, Refresh/Dismiss; avatar identity nằm ở đáy activity rail và Git panel có mục Account riêng.
+- Right panel có optional Left/Right layout, được lưu trong UI preferences và không remount terminal panes khi đổi vị trí.
+- Account menu mở GitHub/Login/Change account/Logout web session bằng browser mặc định; credential local vẫn do SSH/Git Credential Manager quản lý.
 
 ## Files chính
 

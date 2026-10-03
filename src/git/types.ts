@@ -13,6 +13,20 @@ export interface GitError {
   exitCode?: number | null;
 }
 
+export interface GitIdentity {
+  name: string | null;
+  email: string | null;
+}
+
+export type GitRemoteProvider = "github" | "gitlab" | "bitbucket" | "other";
+
+export interface GitRemoteInfo {
+  name: string;
+  host: string | null;
+  provider: GitRemoteProvider;
+  repositoryUrl: string | null;
+}
+
 export interface GitBranch {
   head: string | null;
   oid: string | null;
@@ -20,6 +34,12 @@ export interface GitBranch {
   ahead: number;
   behind: number;
   detached: boolean;
+}
+
+export interface GitBranchInfo {
+  name: string;
+  upstream: string | null;
+  current: boolean;
 }
 
 export interface GitStatusEntry {
@@ -42,6 +62,10 @@ export interface GitStatus {
   requestId: string | null;
   statusToken: string;
   branch: GitBranch;
+  localBranches: GitBranchInfo[];
+  remoteBranches: string[];
+  identity: GitIdentity;
+  remote: GitRemoteInfo | null;
   entries: GitStatusEntry[];
 }
 

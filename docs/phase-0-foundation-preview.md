@@ -57,13 +57,13 @@ Rust ping command
 │ │ Terminal 1       │ Terminal 2           │ │    │ IPC check│
 │ ├──────────────────┼──────────────────────┤ │ ▱  │          │
 │ │ Terminal 3       │ Terminal 4           │ │ <> │          │
-│ └──────────────────┴──────────────────────┘ │ ✦  │          │
+│ └──────────────────┴──────────────────────┘ │    │          │
 ├─────────────────────────────────────────────┴────┴──────────┤
 │ T1 ●   T2 ●   T3 ●   T4 ●                 Workspace: none  │
 └─────────────────────────────────────────────────────────────┘
 ```
 
-Terminal là vùng chính. Activity rail hiển thị Git, Explorer, Editor và AI; trong Phase 0 chỉ Git panel là placeholder mặc định. Các command trong terminal card chỉ là ví dụ trực quan, chưa chạy process.
+Terminal là vùng chính. Activity rail hiển thị Git, Explorer và Editor; trong Phase 0 chỉ Git panel là placeholder mặc định. Các command trong terminal card chỉ là ví dụ trực quan, chưa chạy process.
 
 ## 4. Trạng thái repository
 
@@ -142,7 +142,7 @@ Ngoài version command, cần xác nhận Rust toolchain `stable-msvc`, Microsof
 ### Task 0.3 — Dựng app shell
 
 - [x] Terminal mock là vùng trung tâm với grid 2 × 2.
-- [x] Supporting tools nằm trong activity rail/right panel bên phải.
+- [x] Git, Explorer và Editor nằm trong activity rail/right panel bên phải.
 - [x] Git là panel mặc định và có foundation IPC check.
 - [x] Không còn component/badge layout cũ gây hiểu nhầm Phase 0.
 - [x] Window/CSS đã cấu hình kích thước tối thiểu `960 × 600`.

@@ -1,6 +1,7 @@
 #[cfg(debug_assertions)]
 use std::path::PathBuf;
 
+mod external;
 mod file_editor;
 mod filesystem;
 mod git;
@@ -9,11 +10,12 @@ mod preferences;
 mod terminal;
 mod workspace;
 
+use external::open_external_url;
 use file_editor::{read_file, write_file};
 use filesystem::read_directory;
 use git::{
-    git_add, git_cancel, git_commit, git_diff, git_operations, git_push, git_repository,
-    git_restore, git_status, GitService,
+    git_add, git_cancel, git_commit, git_create_branch, git_diff, git_operations, git_push,
+    git_repository, git_restore, git_status, git_switch_branch, GitService,
 };
 use preferences::{
     forget_last_workspace, load_ui_preferences, remember_active_workspace, restore_last_workspace,
@@ -55,6 +57,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
             ping,
+            open_external_url,
             open_workspace,
             load_ui_preferences,
             save_ui_preferences,
@@ -71,6 +74,8 @@ pub fn run() {
             git_restore,
             git_commit,
             git_push,
+            git_create_branch,
+            git_switch_branch,
             git_operations,
             git_cancel,
             terminal_spawn,

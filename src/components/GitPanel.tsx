@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type FormEvent } from "react";
 import type { EditorPanelSize } from "../panels/types";
 import type { WorkspaceDescriptor } from "../workspace/types";
 import type { GitStatusEntry } from "../git/types";
@@ -43,6 +43,7 @@ function canUnstageEntry(entry: GitStatusEntry): boolean {
 
 export function GitPanel({ controller, expanded, onExpandedChange, onOpenFile, workspace }: GitPanelProps) {
   const [groupsLayout, setGroupsLayout] = useState<GitGroupsLayout>("stacked");
+  const [newBranchName, setNewBranchName] = useState("");
   const { status } = controller;
   if (!workspace) {
     return (
@@ -78,6 +79,16 @@ export function GitPanel({ controller, expanded, onExpandedChange, onOpenFile, w
   ));
   const upstreamTarget = parseUpstream(status?.branch.upstream ?? null);
   const hasUpstream = Boolean(status?.branch.head && upstreamTarget && !status.branch.detached);
+  const remoteProvider = status?.remote?.provider;
+  const remoteLabel = remoteProvider ? `${status?.remote?.host ?? "Remote"} · auth checked on Push` : "No remote detected";
+
+  function handleCreateBranch(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const branchName = newBranchName.trim();
+    if (!branchName || controller.busy) return;
+    setNewBranchName("");
+    void controller.createBranch(branchName);
+  }
 
   return (
     <div className={`git-panel${expanded ? " git-panel-expanded" : ""}`}>
@@ -117,10 +128,82 @@ export function GitPanel({ controller, expanded, onExpandedChange, onOpenFile, w
         </div>
       </header>
 
-      {controller.error ? <div className="git-error" role="alert">{controller.error}</div> : null}
+      {controller.feedback ? (
+        <div className={`git-feedback git-feedback-${controller.feedback.kind}`} role={controller.feedback.kind === "error" ? "alert" : "status"} aria-live="polite">
+          <div className="git-feedback-heading"><strong>{controller.feedback.operation}</strong><code>{controller.feedback.code}</code></div>
+          <p>{controller.feedback.message}</p>
+          {controller.feedback.guidance ? <p className="git-feedback-guidance">{controller.feedback.guidance}</p> : null}
+          <div className="git-feedback-actions">
+            {controller.feedback.kind === "error" ? <button className="editor-quiet-button" disabled={controller.busy} onClick={() => void controller.refresh()} type="button">Refresh status</button> : null}
+            <button className="editor-quiet-button" onClick={controller.dismissFeedback} type="button">Dismiss</button>
+          </div>
+        </div>
+      ) : null}
       {controller.operation ? <div className="git-operation"><span>Running: {controller.operation.operation}{controller.operation.cancellationRequested ? " (cancelling…)" : ""}</span><button className="editor-quiet-button" disabled={controller.operation.cancellationRequested} onClick={() => void controller.cancel()} type="button">Cancel</button></div> : null}
       {status ? (
         <>
+          <section className="git-branch-manager" aria-label="Branch management">
+            <div className="git-branch-manager-heading">
+              <div>
+                <span className="panel-kicker">BRANCHES</span>
+                <h3>{status.branch.detached ? "Detached HEAD" : status.branch.head ?? "No branch yet"}</h3>
+              </div>
+              <span className="git-branch-count">{status.localBranches.length} local</span>
+            </div>
+            <div className="git-branch-controls">
+              <label className="git-branch-switcher">
+                <span>Switch branch</span>
+                <select
+                  aria-label="Switch branch"
+                  disabled={controller.busy || status.localBranches.length === 0}
+                  onChange={(event) => {
+                    if (event.target.value && event.target.value !== status.branch.head) {
+                      void controller.switchBranch(event.target.value);
+                    }
+                  }}
+                  value={status.branch.detached ? "" : status.branch.head ?? ""}
+                >
+                  <option disabled value="">Select a local branch</option>
+                  {status.localBranches.map((branch) => <option key={branch.name} value={branch.name}>{branch.name}</option>)}
+                </select>
+              </label>
+              <form className="git-create-branch" onSubmit={handleCreateBranch}>
+                <label htmlFor="git-new-branch">Create branch</label>
+                <div>
+                  <input
+                    id="git-new-branch"
+                    maxLength={255}
+                    onChange={(event) => setNewBranchName(event.target.value)}
+                    placeholder="feature/my-branch"
+                    value={newBranchName}
+                  />
+                  <button className="editor-quiet-button" disabled={controller.busy || !newBranchName.trim()} type="submit">Create</button>
+                </div>
+              </form>
+            </div>
+            <div className="git-branch-visual" aria-label="Local branches">
+              {status.localBranches.length > 0 ? status.localBranches.map((branch) => (
+                <div className={`git-branch-node${branch.current ? " git-branch-node-current" : ""}`} key={branch.name}>
+                  <span className="git-branch-node-line" aria-hidden="true"><span /></span>
+                  <span className="git-branch-node-name">{branch.name}</span>
+                  {branch.current ? <span className="git-branch-current-label">Current</span> : null}
+                  {branch.upstream ? <span className="git-branch-upstream">↗ {branch.upstream}</span> : null}
+                </div>
+              )) : <span className="git-empty">No local branches</span>}
+            </div>
+            {status.remoteBranches.length > 0 ? (
+              <details className="git-remote-branches">
+                <summary>Remote branches <span>{status.remoteBranches.length}</span></summary>
+                <div>{status.remoteBranches.map((branch) => <code key={branch}>{branch}</code>)}</div>
+              </details>
+            ) : null}
+            <p className="git-branch-note">
+              {status.entries.length > 0
+                ? "Switch branch yêu cầu working tree sạch; hãy commit hoặc stash thay đổi trước."
+                : "Branch mới được tạo từ commit hiện tại."
+              }
+            </p>
+          </section>
           <div className="git-branch-stats" aria-label="Branch status">
             <span>Ahead {status.branch.ahead}</span>
             <span>Behind {status.branch.behind}</span>
@@ -221,9 +304,21 @@ export function GitPanel({ controller, expanded, onExpandedChange, onOpenFile, w
             <button className="editor-quiet-button" disabled={controller.busy || !hasUpstream} title={hasUpstream ? `Push ${status.branch.head} to ${upstreamTarget?.ref}` : "Push requires a valid current branch and upstream"} onClick={() => void controller.push()} type="button">Push current branch</button>
             <p className="git-form-note">{hasUpstream ? "Push uses the configured upstream only." : "Push requires a current branch and valid upstream."}</p>
           </section>
+
+          <details className="git-account-section">
+            <summary>
+              <span><span className="panel-kicker">ACCOUNT</span><strong>{status.identity.name ?? "Git identity missing"}</strong></span>
+              <span>{remoteProvider === "github" ? "GitHub" : remoteLabel}</span>
+            </summary>
+            <div className="git-account-details">
+              <div><span>Commit email</span><code>{status.identity.email ?? "Not configured"}</code></div>
+              <div><span>Remote</span><code>{status.remote?.host ?? "Not detected"}</code></div>
+              <div><span>Authentication</span><code>{controller.authVerified ? "Verified after successful Push" : "Checked when Push runs"}</code></div>
+            </div>
+          </details>
         </>
       ) : (
-        <div className="git-state">{controller.error ? "Git status không khả dụng." : "Chưa có Git status."}</div>
+        <div className="git-state">{controller.feedback?.kind === "error" ? "Git status không khả dụng." : "Chưa có Git status."}</div>
       )}
     </div>
   );

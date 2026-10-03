@@ -1,19 +1,24 @@
 import { invoke } from "@tauri-apps/api/core";
+import { isTauriRuntime } from "../tauri/runtime";
 import { DEFAULT_UI_PREFERENCES, type PreferencesSnapshot, type UiPreferences } from "./types";
 
 const STORAGE_KEY = "vibe-rider.ui-preferences.v1";
-
-function isTauriRuntime(): boolean {
-  return "__TAURI_INTERNALS__" in window;
-}
 
 function browserSnapshot(): PreferencesSnapshot {
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY);
     if (!raw) return { preferences: DEFAULT_UI_PREFERENCES, rememberedWorkspace: null, warning: null };
     const parsed = JSON.parse(raw) as Partial<PreferencesSnapshot>;
+    const panel = parsed.preferences?.panel;
+    const activeTool = panel?.activeTool === "git" || panel?.activeTool === "explorer" || panel?.activeTool === "editor"
+      ? panel.activeTool
+      : DEFAULT_UI_PREFERENCES.panel.activeTool;
     return {
-      preferences: parsed.preferences?.version === 1 ? { ...DEFAULT_UI_PREFERENCES, ...parsed.preferences } as UiPreferences : DEFAULT_UI_PREFERENCES,
+      preferences: parsed.preferences?.version === 1 ? {
+        ...DEFAULT_UI_PREFERENCES,
+        ...parsed.preferences,
+        panel: { ...DEFAULT_UI_PREFERENCES.panel, ...panel, activeTool },
+      } as UiPreferences : DEFAULT_UI_PREFERENCES,
       rememberedWorkspace: null,
       warning: null,
     };

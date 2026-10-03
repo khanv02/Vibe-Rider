@@ -67,7 +67,6 @@ Terminal = Main Workspace
 Git
 Explorer
 Editor
-AI GUI
 
 = Optional Supporting Tools
 ```
@@ -85,8 +84,7 @@ V1 chỉ tập trung vào:
 4. File Explorer
 5. Simple Code Editor
 6. Git integration
-7. Optional AI Chat
-8. Local AI Agent tools
+7. Local AI Agent tools
 ```
 
 Không xây:
@@ -193,7 +191,6 @@ Terminal layout
 Explorer
 Git UI
 Editor UI
-AI UI
 ```
 
 TypeScript:
@@ -327,6 +324,73 @@ PowerShell
 
 # 6. TERMINAL-FIRST LAYOUT
 
+Layout chuẩn của app hiện tại là một shell gồm ba vùng rõ ràng:
+
+```text
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ Header: brand · workspace · Open Folder · tools position · status            │
+├──────────────────────────────────────────────────────────────┬───────────────┤
+│                                                              │               │
+│                     TERMINAL WORKSPACE                      │  TOOLS PANEL  │
+│                    (1 / 2 / 4 panes)                         │ Git/Explorer/ │
+│                                                              │ Editor        │
+├──────────────────────────────────────────────────────────────┴───────────────┤
+│ Status bar: T1..T4 · active pane · workspace · branch                       │
+└──────────────────────────────────────────────────────────────────────────────┘
+```
+
+Quy tắc layout:
+
+```text
+Terminal workspace = vùng trung tâm và mặc định chiếm phần lớn diện tích
+Tools panel       = panel phụ, chỉ hiển thị một tool tại một thời điểm
+Header            = điều khiển workspace và trạng thái ứng dụng
+Status bar        = trạng thái terminal, workspace và Git branch
+```
+
+Tools panel phải hỗ trợ:
+
+```text
+Left hoặc Right
+Resizable
+Collapsible
+Optional
+```
+
+Khi panel bị thu gọn, terminal workspace mở rộng gần toàn bộ chiều ngang.
+Việc đổi vị trí, resize hoặc đóng/mở panel không được remount hoặc làm mất
+state của các terminal/PTY.
+
+Header tối thiểu có:
+
+```text
+Brand / app name
+Open Folder
+Tools position: Left / Right
+Show tools / Hide tools
+Workspace status
+```
+
+Status bar tối thiểu có:
+
+```text
+T1..T4 và trạng thái active/running
+Workspace name
+Git branch
+```
+
+Shortcut chuẩn:
+
+```text
+Ctrl + Alt + 1/2/4  → đổi layout 1/2/4 terminal
+Ctrl + Shift + 1..4 → focus terminal tương ứng
+Ctrl + Alt + B      → ẩn/hiện tools panel
+Ctrl + Alt + G/E/M  → focus Git/Explorer/Editor
+```
+
+Shortcut phải có context guard: không can thiệp vào text input, xterm.js,
+Monaco hoặc modal khi thao tác đó thuộc về component đang focus.
+
 Layout mặc định:
 
 ```text
@@ -339,7 +403,7 @@ Layout mặc định:
 │ │                                │                                         │  │    │        │
 │ │ > AI CLI                       │ > AI CLI                                │  │ <> │        │
 │ │                                │                                         │  │    │        │
-│ │                                │                                         │  │ ✦  │        │
+│ │                                │                                         │  │    │        │
 │ ├────────────────────────────────┼─────────────────────────────────────────┤  │    │        │
 │ │ TERMINAL 3                     │ TERMINAL 4                              │  │    │        │
 │ │                                │                                         │  │    │        │
@@ -431,9 +495,9 @@ Shortcut chỉ là proposal, có thể điều chỉnh nếu conflict.
 
 ---
 
-# 9. RIGHT PANEL
+# 9. TOOLS PANEL (LEFT OR RIGHT)
 
-Tất cả supporting tools nằm bên phải.
+Supporting tools nằm trong panel có thể đặt bên trái hoặc bên phải.
 
 ```text
 ┌────┬──────────────────────┐
@@ -443,7 +507,7 @@ Tất cả supporting tools nằm bên phải.
 │    │    ACTIVE PANEL      │
 │ <> │                      │
 │    │                      │
-│ ✦  │                      │
+│    │                      │
 │    │                      │
 └────┴──────────────────────┘
 ```
@@ -454,7 +518,6 @@ Bao gồm:
 ⎇  Git
 📁 Explorer
 <> Editor
-✦  AI Panel
 ```
 
 Chỉ hiển thị một panel chính tại một thời điểm.
@@ -465,12 +528,13 @@ Mặc định:
 Git Panel
 ```
 
-Right panel phải:
+Tools panel phải:
 
 ```text
 Resizable
 Collapsible
 Optional
+Left / Right
 ```
 
 User có thể đóng hoàn toàn để terminal chiếm gần 100% màn hình.
@@ -599,7 +663,7 @@ write_file(path, content)
 
 Editor không phải central workspace.
 
-Editor mở bên phải khi user cần xem hoặc sửa code.
+Editor mở trong tools panel khi user cần xem hoặc sửa code.
 
 Ví dụ:
 
@@ -635,28 +699,6 @@ Editor có thể tạm chiếm khoảng 50–70%.
 ```
 
 Sau khi edit xong user có thể thu nhỏ editor lại.
-
----
-
-# 13. AI PANEL
-
-AI Panel là optional GUI.
-
-Không phải AI interface chính.
-
-AI CLI trong terminal vẫn là workflow ưu tiên.
-
-AI Panel dùng cho:
-
-```text
-Explain code
-Ask about current file
-Explain terminal error
-Simple chat
-Review selected code
-```
-
-Không cần cạnh tranh với terminal AI CLI.
 
 ---
 
@@ -1140,7 +1182,6 @@ Implement:
 Git
 Explorer
 Editor
-AI
 ```
 
 Panel:
@@ -1218,22 +1259,6 @@ Panel persistence
 Goal:
 
 > Tôi có thể sử dụng IDE này để tiếp tục phát triển chính IDE.
-
----
-
-## PHASE 8 — AI CHAT
-
-Feature:
-
-```text
-Chat
-Streaming
-Current file
-Selected code
-Terminal error
-```
-
-AI chưa tự sửa file.
 
 ---
 
@@ -1602,7 +1627,7 @@ V1 cuối cùng nên giống:
 │ │                                │                                         │  │    │ M api  │
 │ │ > claude                       │ > codex                                 │  │ <> │        │
 │ │                                │                                         │  │    │Commit  │
-│ │                                │                                         │  │ ✦  │[____]  │
+│ │                                │                                         │  │    │[____]  │
 │ ├────────────────────────────────┼─────────────────────────────────────────┤  │    │        │
 │ │ TERMINAL 3                     │ TERMINAL 4                              │  │    │[Commit]│
 │ │                                │                                         │  │    │[Push]  │

@@ -6,6 +6,30 @@
   text-rendering: optimizeLegibility;
 }
 
+.app-startup-error {
+  box-sizing: border-box;
+  min-height: 100vh;
+  padding: 48px;
+  color: #e6edf3;
+  background: #0f1117;
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+}
+
+.app-startup-error h1 {
+  margin: 0 0 16px;
+  font-size: 24px;
+}
+
+.app-startup-error p {
+  max-width: 720px;
+  color: #9aa6b2;
+  line-height: 1.6;
+}
+
+.app-startup-error code {
+  color: #d7e3f4;
+}
+
 * {
   box-sizing: border-box;
 }
@@ -137,6 +161,90 @@ button {
   white-space: nowrap;
 }
 
+.app-account-popover {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex: 0 0 auto;
+  gap: 6px;
+  min-width: 0;
+  max-width: 132px;
+  margin-left: auto;
+  color: #a7b4c4;
+}
+
+.app-account-trigger {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  cursor: pointer;
+  list-style: none;
+}
+
+.app-account-trigger::-webkit-details-marker {
+  display: none;
+}
+
+.app-account-avatar {
+  position: relative;
+  display: inline-grid;
+  flex: 0 0 25px;
+  width: 25px;
+  height: 25px;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid #435164;
+  border-radius: 50%;
+  background: #17212c;
+  color: #b8c5d5;
+  font-family: var(--font-mono);
+  font-size: 8px;
+  font-weight: 750;
+}
+
+.app-account-avatar-github {
+  border-color: #5c897e;
+  background: #18302e;
+  color: #91e1c3;
+}
+
+.app-account-avatar img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.app-account-badge-verified .app-account-avatar {
+  box-shadow: 0 0 0 2px color-mix(in srgb, #91e1c3 20%, transparent);
+}
+
+.app-account-copy {
+  display: grid;
+  min-width: 0;
+  gap: 1px;
+}
+
+.app-account-copy strong,
+.app-account-copy small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-account-copy strong {
+  color: #dce8e4;
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.app-account-copy small {
+  color: #718096;
+  font-size: 8px;
+}
+
 .header-notice {
   max-width: 96px;
   overflow: hidden;
@@ -184,6 +292,30 @@ button {
   background: #1a2a2d;
 }
 
+.header-panel-side {
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid #2d3948;
+  border-radius: 5px;
+}
+
+.header-panel-side-label {
+  padding: 0 4px;
+  color: #718096;
+  font-size: 8px;
+  font-weight: 750;
+  letter-spacing: 0.08em;
+}
+
+.header-panel-side .size-button {
+  min-height: 22px;
+  padding: 0 5px;
+  font-size: 8px;
+}
+
 .status-indicator,
 .status-terminal-dot,
 .rail-footer-dot,
@@ -207,8 +339,31 @@ button {
   min-height: 0;
 }
 
+.app-body-panel-left {
+  grid-template-columns: var(--right-panel-width, 304px) var(--right-panel-splitter-width, 6px) minmax(0, 1fr);
+}
+
+.app-body-panel-left .right-panel-slot {
+  grid-column: 1;
+  grid-row: 1;
+}
+
+.app-body-panel-left .right-panel-resize-handle {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+.app-body-panel-left .terminal-workspace-slot {
+  grid-column: 3;
+  grid-row: 1;
+}
+
 .app-body-panel-collapsed {
   grid-template-columns: minmax(0, 1fr) 0 0;
+}
+
+.app-body-panel-left.app-body-panel-collapsed {
+  grid-template-columns: 0 0 minmax(0, 1fr);
 }
 
 .terminal-workspace-slot,
@@ -681,6 +836,11 @@ button {
   pointer-events: none;
 }
 
+.app-body-panel-left .right-panel {
+  border-right: 1px solid #2a3441;
+  border-left: 0;
+}
+
 .right-panel-views {
   display: flex;
   min-width: 0;
@@ -778,6 +938,101 @@ button {
   min-height: 34px;
   margin-top: auto;
   border-top: 1px solid #242d39;
+}
+
+.rail-footer .app-account-popover {
+  margin-left: 0;
+  max-width: none;
+}
+
+.rail-footer .app-account-copy {
+  display: none;
+}
+
+.rail-footer .app-account-avatar {
+  width: 27px;
+  height: 27px;
+}
+
+.app-account-menu {
+  position: absolute;
+  z-index: 20;
+  bottom: 0;
+  left: calc(100% + 8px);
+  display: grid;
+  width: 230px;
+  gap: 4px;
+  padding: 8px;
+  border: 1px solid #364557;
+  border-radius: 6px;
+  background: #151d27;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.35);
+  font-family: var(--font-sans);
+  font-size: 12px;
+}
+
+.app-account-menu-heading {
+  display: grid;
+  gap: 2px;
+  padding: 2px 4px 6px;
+  border-bottom: 1px solid #2b3745;
+}
+
+.app-account-menu-heading strong {
+  overflow: hidden;
+  color: #dce8e4;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-account-menu-heading span,
+.app-account-menu p,
+.app-account-menu-error {
+  color: #8795a7;
+  font-size: 10px;
+  line-height: 1.4;
+}
+
+.app-account-menu button {
+  min-height: 27px;
+  padding: 0 7px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  color: #b9c6d4;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  font-family: var(--font-sans);
+  font-size: 11px;
+}
+
+.app-account-menu button:hover {
+  border-color: #3e5f58;
+  color: #dce8e4;
+  background: #1c2c2d;
+}
+
+.app-account-menu button.app-account-logout {
+  color: #ef8f98;
+}
+
+.app-account-menu button.app-account-logout:hover {
+  border-color: #75434a;
+  color: #ffb0b7;
+  background: #2b191d;
+}
+
+.app-account-menu p {
+  margin: 3px 4px 0;
+}
+
+.app-account-menu-error {
+  color: #e1a8ad;
+}
+
+.rail-footer .app-account-menu {
+  left: calc(100% + 8px);
 }
 
 .rail-footer-dot {
@@ -1614,6 +1869,60 @@ button {
   margin-top: 0;
 }
 
+.git-identity-chip {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  max-width: 180px;
+  gap: 6px;
+  color: var(--text-secondary);
+}
+
+.git-identity-avatar {
+  display: inline-grid;
+  flex: 0 0 24px;
+  width: 24px;
+  height: 24px;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--accent) 55%, var(--border-subtle));
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--accent) 18%, var(--surface-raised));
+  color: var(--accent);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.git-identity-verified .git-identity-avatar {
+  border-color: color-mix(in srgb, var(--success) 60%, var(--border-subtle));
+  background: color-mix(in srgb, var(--success) 18%, var(--surface-raised));
+  color: var(--success);
+}
+
+.git-identity-copy {
+  display: grid;
+  min-width: 0;
+  gap: 1px;
+}
+
+.git-identity-copy strong,
+.git-identity-copy small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.git-identity-copy strong {
+  color: var(--text-primary);
+  font-size: 10px;
+  font-weight: 650;
+}
+
+.git-identity-copy small {
+  color: var(--text-muted);
+  font-size: 8px;
+}
+
 .git-summary,
 .git-section-heading,
 .git-push-box,
@@ -1679,12 +1988,268 @@ button {
   white-space: nowrap;
 }
 
+.git-working-repository {
+  display: grid;
+  gap: 4px;
+  margin-top: 10px;
+  padding: 8px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--surface-raised) 76%, transparent);
+}
+
+.git-working-repository > div:first-child {
+  display: grid;
+  gap: 2px;
+}
+
+.git-working-repository strong {
+  overflow: hidden;
+  color: var(--text-primary);
+  font-size: 11px;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.git-working-repository code {
+  overflow: hidden;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.git-working-repository-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 8px;
+}
+
 .git-ref-remote {
   color: var(--text-secondary);
 }
 
 .git-ref-separator {
   color: var(--text-muted);
+}
+
+.git-branch-manager {
+  display: grid;
+  gap: 9px;
+  margin: 10px 0;
+  padding: 10px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--surface-raised) 68%, transparent);
+}
+
+.git-branch-manager-heading,
+.git-branch-controls,
+.git-branch-node,
+.git-remote-branches summary {
+  display: flex;
+  align-items: center;
+}
+
+.git-branch-manager-heading {
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.git-branch-manager-heading h3 {
+  margin: 3px 0 0;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.git-branch-count,
+.git-branch-current-label {
+  color: var(--accent);
+  font-family: var(--font-mono);
+  font-size: 9px;
+}
+
+.git-branch-controls {
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.git-branch-switcher,
+.git-create-branch {
+  display: grid;
+  flex: 1 1 0;
+  min-width: 0;
+  gap: 4px;
+  color: var(--text-muted);
+  font-size: 9px;
+}
+
+.git-branch-switcher select,
+.git-create-branch input {
+  width: 100%;
+  min-height: 29px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 4px;
+  color: var(--text-secondary);
+  background: var(--surface-hover);
+  font-family: var(--font-sans);
+  font-size: 10px;
+}
+
+.git-branch-switcher select {
+  padding: 0 7px;
+}
+
+.git-create-branch > div {
+  display: flex;
+  gap: 5px;
+}
+
+.git-create-branch input {
+  min-width: 0;
+  padding: 0 7px;
+}
+
+.git-create-branch input:focus,
+.git-branch-switcher select:focus {
+  border-color: var(--accent);
+  outline: none;
+}
+
+.git-branch-visual {
+  display: grid;
+  gap: 2px;
+  padding: 2px 0;
+}
+
+.git-branch-node {
+  min-width: 0;
+  min-height: 27px;
+  gap: 7px;
+  padding: 0 5px;
+  border-radius: 4px;
+}
+
+.git-branch-node-current {
+  background: color-mix(in srgb, var(--accent) 9%, transparent);
+}
+
+.git-branch-node-line {
+  position: relative;
+  display: inline-grid;
+  flex: 0 0 12px;
+  width: 12px;
+  height: 27px;
+  place-items: center;
+}
+
+.git-branch-node-line::before {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--border-subtle);
+  content: "";
+}
+
+.git-branch-node-line span {
+  z-index: 1;
+  width: 7px;
+  height: 7px;
+  border: 2px solid var(--text-muted);
+  border-radius: 50%;
+  background: var(--surface-raised);
+}
+
+.git-branch-node-current .git-branch-node-line span {
+  border-color: var(--accent);
+  background: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 15%, transparent);
+}
+
+.git-branch-node-name {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.git-branch-node-current .git-branch-node-name {
+  color: var(--text-primary);
+  font-weight: 650;
+}
+
+.git-branch-current-label {
+  flex: 0 0 auto;
+  padding: 2px 4px;
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+  border-radius: 3px;
+}
+
+.git-branch-upstream {
+  min-width: 0;
+  margin-left: auto;
+  overflow: hidden;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.git-remote-branches {
+  border-top: 1px solid var(--border-subtle);
+  padding-top: 7px;
+}
+
+.git-remote-branches summary {
+  justify-content: space-between;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 9px;
+  list-style: none;
+}
+
+.git-remote-branches summary::-webkit-details-marker {
+  display: none;
+}
+
+.git-remote-branches summary span {
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+}
+
+.git-remote-branches > div {
+  display: grid;
+  gap: 3px;
+  max-height: 120px;
+  margin-top: 6px;
+  overflow-y: auto;
+}
+
+.git-remote-branches code {
+  overflow: hidden;
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.git-branch-note {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 9px;
+  line-height: 1.4;
 }
 
 .git-branch-stats {
@@ -1953,6 +2518,122 @@ button {
   color: var(--danger);
   font-size: 11px;
   line-height: 1.4;
+}
+
+.git-feedback {
+  display: grid;
+  gap: 5px;
+  padding: 8px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 5px;
+  font-size: 10px;
+  line-height: 1.4;
+}
+
+.git-feedback-error {
+  border-color: color-mix(in srgb, var(--danger) 55%, transparent);
+  background: color-mix(in srgb, var(--danger) 8%, transparent);
+}
+
+.git-feedback-success {
+  border-color: color-mix(in srgb, var(--success) 45%, transparent);
+  background: color-mix(in srgb, var(--success) 7%, transparent);
+}
+
+.git-feedback-info {
+  color: var(--text-secondary);
+}
+
+.git-feedback-heading,
+.git-feedback-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.git-feedback-heading strong {
+  color: var(--text-primary);
+}
+
+.git-feedback-heading code {
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 9px;
+}
+
+.git-feedback p {
+  margin: 0;
+  color: var(--text-secondary);
+}
+
+.git-feedback-guidance {
+  color: var(--text-muted) !important;
+}
+
+.git-feedback-actions {
+  justify-content: flex-start;
+}
+
+.git-account-section {
+  margin-top: 10px;
+  border-top: 1px solid var(--border-subtle);
+  padding-top: 9px;
+}
+
+.git-account-section summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.git-account-section summary::-webkit-details-marker {
+  display: none;
+}
+
+.git-account-section summary > span:first-child {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.git-account-section summary strong,
+.git-account-section summary > span:last-child {
+  overflow: hidden;
+  color: var(--text-secondary);
+  font-size: 10px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.git-account-details {
+  display: grid;
+  gap: 5px;
+  margin-top: 8px;
+  padding: 8px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--surface-raised) 70%, transparent);
+}
+
+.git-account-details > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--text-muted);
+  font-size: 9px;
+}
+
+.git-account-details code {
+  overflow: hidden;
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .git-operation {
