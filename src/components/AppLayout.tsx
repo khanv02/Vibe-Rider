@@ -3,9 +3,17 @@ import { StatusBar } from "./StatusBar";
 
 interface AppLayoutProps {
   children: ReactNode;
+  isOpeningWorkspace: boolean;
+  onOpenWorkspace: () => void;
+  workspaceName: string | null;
 }
 
-export function AppLayout({ children }: AppLayoutProps) {
+export function AppLayout({
+  children,
+  isOpeningWorkspace,
+  onOpenWorkspace,
+  workspaceName,
+}: AppLayoutProps) {
   return (
     <main className="app-shell">
       <header className="app-header">
@@ -15,20 +23,28 @@ export function AppLayout({ children }: AppLayoutProps) {
         </div>
         <div className="app-title-group">
           <h1>Vibe Rider</h1>
-          <span className="app-mode">FOUNDATION</span>
+          <span className="app-mode">WORKSPACE</span>
         </div>
         <div className="header-context">
           <span className="header-context-label">LOCAL / TERMINAL-FIRST</span>
           <span className="header-context-divider" aria-hidden="true" />
           <span>Desktop shell preview</span>
         </div>
+        <button
+          className="header-open-button"
+          disabled={isOpeningWorkspace}
+          onClick={onOpenWorkspace}
+          type="button"
+        >
+          {isOpeningWorkspace ? "Opening…" : "Open Folder"}
+        </button>
         <div className="header-status">
           <span className="status-indicator" />
-          <span>Native verification pending</span>
+          <span>{workspaceName ?? "No workspace"}</span>
         </div>
       </header>
       <section className="app-body">{children}</section>
-      <StatusBar />
+      <StatusBar workspaceName={workspaceName} />
     </main>
   );
 }

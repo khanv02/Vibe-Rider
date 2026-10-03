@@ -1,16 +1,36 @@
+import type { WorkspaceDescriptor } from "../workspace/types";
+
+type ActiveTool = "git" | "explorer";
+
 interface RightPanelProps {
+  activeTool: ActiveTool;
   ipcMessage: string;
   onCheckIpc: () => void;
+  onOpenWorkspace: () => void;
+  onSelectTool: (tool: ActiveTool) => void;
+  workspace: WorkspaceDescriptor | null;
+  workspaceError: string | null;
 }
 
-const tools = [
-  { icon: "⎇", label: "Git", active: true },
-  { icon: "▱", label: "Explorer", active: false },
-  { icon: "<>", label: "Editor", active: false },
-  { icon: "✦", label: "AI", active: false },
+const tools: Array<{ icon: string; id: ActiveTool; label: string }> = [
+  { icon: "⎇", id: "git", label: "Git" },
+  { icon: "▱", id: "explorer", label: "Explorer" },
 ];
 
-export function RightPanel({ ipcMessage, onCheckIpc }: RightPanelProps) {
+const plannedTools = [
+  { icon: "<>", label: "Editor" },
+  { icon: "✦", label: "AI" },
+];
+
+export function RightPanel({
+  activeTool,
+  ipcMessage,
+  onCheckIpc,
+  onOpenWorkspace,
+  onSelectTool,
+  workspace,
+  workspaceError,
+}: RightPanelProps) {
   return (
     <aside className="right-panel" aria-label="Supporting tools">
       <nav className="activity-rail" aria-label="Supporting tool navigation">
@@ -20,13 +40,28 @@ export function RightPanel({ ipcMessage, onCheckIpc }: RightPanelProps) {
         <div className="rail-tools">
           {tools.map((tool) => (
             <button
-              className={`rail-tool${tool.active ? " rail-tool-active" : ""}`}
-              disabled={!tool.active}
-              key={tool.label}
-              title={`${tool.label} — ${tool.active ? "default panel" : "planned tool"}`}
+              aria-current={activeTool === tool.id ? "page" : undefined}
+              aria-label={tool.label}
+              className={`rail-tool rail-tool-enabled${activeTool === tool.id ? " rail-tool-active" : ""}`}
+              key={tool.id}
+              onClick={() => onSelectTool(tool.id)}
+              title={tool.label}
               type="button"
-              aria-current={tool.active ? "page" : undefined}
-              aria-label={`${tool.label}, ${tool.active ? "default panel" : "planned tool"}`}
+            >
+              <span className="rail-icon" aria-hidden="true">
+                {tool.icon}
+              </span>
+              <span className="rail-label">{tool.label}</span>
+            </button>
+          ))}
+          {plannedTools.map((tool) => (
+            <button
+              aria-label={`${tool.label}, planned tool`}
+              className="rail-tool"
+              disabled
+              key={tool.label}
+              title={`${tool.label} — planned tool`}
+              type="button"
             >
               <span className="rail-icon" aria-hidden="true">
                 {tool.icon}
@@ -40,44 +75,86 @@ export function RightPanel({ ipcMessage, onCheckIpc }: RightPanelProps) {
         </div>
       </nav>
 
-      <section className="tool-panel" aria-labelledby="git-panel-title">
-        <header className="tool-panel-heading">
-          <div>
-            <p className="panel-kicker">SUPPORTING TOOL</p>
-            <h2 id="git-panel-title">Git</h2>
-          </div>
-          <span className="default-badge">DEFAULT</span>
-        </header>
-
-        <div className="tool-panel-content">
-          <div className="tool-placeholder">
-            <div className="tool-placeholder-icon" aria-hidden="true">
-              ⎇
+      {activeTool === "explorer" ? (
+        <section className="tool-panel" aria-labelledby="explorer-panel-title">
+          <header className="tool-panel-heading">
+            <div>
+              <p className="panel-kicker">SUPPORTING TOOL</p>
+              <h2 id="explorer-panel-title">Explorer</h2>
             </div>
-            <h3>Git panel placeholder</h3>
-            <p>
-              Git operations are not connected in this foundation mock. Supporting tools stay
-              here so the terminal remains the primary workspace.
-            </p>
-          </div>
-
-          <section className="foundation-check" aria-labelledby="foundation-check-title">
-            <div className="foundation-check-heading">
-              <div>
-                <p className="panel-kicker">FOUNDATION CHECK</p>
-                <h3 id="foundation-check-title">React ↔ Rust</h3>
+            <span className="default-badge">PHASE 1</span>
+          </header>
+          <div className="tool-panel-content">
+            {workspace ? (
+              <div className="workspace-summary">
+                <div className="tool-placeholder-icon" aria-hidden="true">
+                  ▱
+                </div>
+                <h3>{workspace.name}</h3>
+                <p className="workspace-path" title={workspace.rootPath}>
+                  {workspace.rootPath}
+                </p>
+                <p>Workspace đã mở. Cây thư mục sẽ được tải ở task Directory API.</p>
               </div>
-              <span className="ipc-dot" aria-hidden="true" />
+            ) : (
+              <div className="tool-placeholder">
+                <div className="tool-placeholder-icon" aria-hidden="true">
+                  ▱
+                </div>
+                <h3>Chưa mở workspace</h3>
+                <p>Chọn một folder local để bắt đầu duyệt cây thư mục.</p>
+                <button
+                  className="primary-button workspace-open-panel-button"
+                  onClick={onOpenWorkspace}
+                  type="button"
+                >
+                  Open Folder
+                </button>
+              </div>
+            )}
+            {workspaceError ? <p className="workspace-error">{workspaceError}</p> : null}
+          </div>
+        </section>
+      ) : (
+        <section className="tool-panel" aria-labelledby="git-panel-title">
+          <header className="tool-panel-heading">
+            <div>
+              <p className="panel-kicker">SUPPORTING TOOL</p>
+              <h2 id="git-panel-title">Git</h2>
             </div>
-            <div className="ipc-result">
-              <span>{ipcMessage}</span>
-              <button className="primary-button" type="button" onClick={onCheckIpc}>
-                Ping Rust
-              </button>
+            <span className="default-badge">DEFAULT</span>
+          </header>
+
+          <div className="tool-panel-content">
+            <div className="tool-placeholder">
+              <div className="tool-placeholder-icon" aria-hidden="true">
+                ⎇
+              </div>
+              <h3>Git panel placeholder</h3>
+              <p>
+                Git operations are not connected in this foundation mock. Supporting tools stay
+                here so the terminal remains the primary workspace.
+              </p>
             </div>
-          </section>
-        </div>
-      </section>
+
+            <section className="foundation-check" aria-labelledby="foundation-check-title">
+              <div className="foundation-check-heading">
+                <div>
+                  <p className="panel-kicker">FOUNDATION CHECK</p>
+                  <h3 id="foundation-check-title">React ↔ Rust</h3>
+                </div>
+                <span className="ipc-dot" aria-hidden="true" />
+              </div>
+              <div className="ipc-result">
+                <span>{ipcMessage}</span>
+                <button className="primary-button" type="button" onClick={onCheckIpc}>
+                  Ping Rust
+                </button>
+              </div>
+            </section>
+          </div>
+        </section>
+      )}
     </aside>
   );
 }

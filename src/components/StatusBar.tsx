@@ -1,6 +1,10 @@
+interface StatusBarProps {
+  workspaceName: string | null;
+}
+
 const terminalIds = ["T1", "T2", "T3", "T4"];
 
-export function StatusBar() {
+export function StatusBar({ workspaceName }: StatusBarProps) {
   return (
     <footer className="status-bar">
       <div className="status-terminals" aria-label="Terminal preview status">
@@ -13,9 +17,9 @@ export function StatusBar() {
       </div>
       <div className="status-spacer" />
       <div className="status-context">
-        <span>Workspace: none</span>
+        <span>Workspace: {workspaceName ?? "none"}</span>
         <span className="status-separator" aria-hidden="true" />
-        <span>Phase 0 / Foundation</span>
+        <span>Phase 1 / Workspace</span>
       </div>
     </footer>
   );

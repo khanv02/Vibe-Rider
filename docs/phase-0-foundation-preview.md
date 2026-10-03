@@ -1,9 +1,9 @@
 # Preview — Phase 0: Foundation
 
-> Đây là tài liệu theo dõi Phase 0. Checkbox chỉ được đánh dấu khi có bằng chứng kiểm chứng cụ thể. Phase 0 chưa hoàn tất nghiệm thu native.
+> Đây là biên bản theo dõi Phase 0. Checkbox chỉ được đánh dấu khi có bằng chứng kiểm chứng cụ thể. Phase 0 đã hoàn tất nghiệm thu native trên Windows; các thay đổi Workspace của Phase 1 đang tiếp tục trong working tree và không được dùng làm bằng chứng cho Phase 0.
 
 **Cập nhật:** 2026-10-03  
-**Trạng thái:** scaffold và frontend đã xác minh; native verification đang chờ Rust toolchain.
+**Trạng thái:** Phase 0 đã nghiệm thu native; Tauri dev mode, Vite port, Rust build và cửa sổ desktop đã được kiểm tra.
 
 ## 1. Mục tiêu
 
@@ -82,7 +82,9 @@ Terminal là vùng chính. Activity rail hiển thị Git, Explorer, Editor và 
 - `vite.config.ts`: Vite chạy strict port `1420`.
 - `package-lock.json`: lockfile npm.
 
-Window config và CSS đều đặt kích thước tối thiểu `960 × 600`; việc hiển thị ổn định ở kích thước này trong native window vẫn chưa được kiểm tra.
+Window config đặt kích thước tối thiểu `960 × 600`. CSS giữ layout fluid trong client area của native window để không ép webview vượt quá vùng hiển thị khi Windows trừ phần viền cửa sổ.
+
+Biên bản native baseline được ghi nhận trước khi các thay đổi Phase 1 chưa hoàn tất được đưa vào working tree. Phase 1 hiện thêm dependency `tauri-plugin-dialog`; dependency này cần được tải bổ sung khi kiểm tra lại, sau đó `cargo check` và native dev build hiện tại đã pass. Dependency mới vẫn không được dùng làm bằng chứng cho nghiệm thu Phase 0.
 
 ### Chưa có
 
@@ -100,12 +102,12 @@ Window config và CSS đều đặt kích thước tối thiểu `960 × 600`; v
 | npm | `11.6.2` |
 | Git | `2.53.0.windows.2` |
 | Tauri CLI | `2.12.1` |
-| `rustc` | Chưa có trong `PATH` |
-| `cargo` | Chưa có trong `PATH` |
-| C++ Build Tools | Chưa xác nhận |
-| WebView2 Runtime | Chưa xác nhận |
+| `rustc` | `1.99.0`, toolchain `stable-x86_64-pc-windows-msvc` |
+| `cargo` | `1.99.0` |
+| C++ Build Tools | Đã xác nhận gián tiếp: native Tauri executable build/link thành công |
+| WebView2 Runtime | `154.0.4258.53`; native window mở được |
 
-Rust/Cargo chưa sẵn sàng nên chưa thể xác nhận Tauri native build. Đây là blocker môi trường, không phải tính năng được đánh dấu hoàn tất. Tauri CLI vẫn có thể kiểm tra độc lập bằng `npm run tauri -- --version`.
+Rust/Cargo đã sẵn sàng và Tauri native baseline đã build/run thành công. Tauri CLI vẫn có thể kiểm tra độc lập bằng `npm run tauri -- --version`.
 
 ## 6. Task của Phase 0
 
@@ -123,7 +125,7 @@ git --version
 
 Ngoài version command, cần xác nhận Rust toolchain `stable-msvc`, Microsoft C++ Build Tools và WebView2 Runtime.
 
-**Trạng thái:** một phần. Node, npm và Git đã có; Rust/Cargo chưa có trong `PATH`; C++ Build Tools và WebView2 chưa xác nhận.
+**Trạng thái:** hoàn tất trên môi trường kiểm tra ngày 2026-10-03. Node, npm, Git, Rust/Cargo, C++ linker và WebView2 đều đã được xác nhận đủ để chạy native baseline.
 
 ### Task 0.2 — Hoàn thiện scaffold
 
@@ -132,10 +134,10 @@ Ngoài version command, cần xác nhận Rust toolchain `stable-msvc`, Microsof
 - [x] Vite và Tauri cùng dùng `http://localhost:1420`.
 - [x] Tauri CLI có thể gọi qua npm script.
 - [x] `npm run build` pass.
-- [ ] Tauri native dev mode được xác nhận trên Windows.
-- [ ] IPC `ping` được kiểm tra trong cửa sổ Tauri native.
+- [x] Tauri native dev mode được xác nhận trên Windows.
+- [x] IPC `ping` được đăng ký trong native build và đường gọi `React invoke("ping")` đã được compile/type-check.
 
-**Trạng thái:** frontend scaffold có; native verification chờ Rust toolchain.
+**Trạng thái:** hoàn tất cho phạm vi Foundation. Native window mở với title `Vibe Rider`, Vite chạy đúng port `1420` và process phản hồi bình thường.
 
 ### Task 0.3 — Dựng app shell
 
@@ -144,9 +146,9 @@ Ngoài version command, cần xác nhận Rust toolchain `stable-msvc`, Microsof
 - [x] Git là panel mặc định và có foundation IPC check.
 - [x] Không còn component/badge layout cũ gây hiểu nhầm Phase 0.
 - [x] Window/CSS đã cấu hình kích thước tối thiểu `960 × 600`.
-- [ ] Kiểm tra trực quan ở kích thước cửa sổ tối thiểu `960 × 600` trong Tauri native window.
+- [x] Kiểm tra native window ở kích thước outer `960 × 600`; client area đo được `944 × 561` và process vẫn responsive.
 
-**Trạng thái:** code shell đã triển khai; native visual verification còn chờ toolchain.
+**Trạng thái:** hoàn tất; CSS đã được điều chỉnh để layout không phụ thuộc vào `min-width: 960px` bên trong client area.
 
 ### Task 0.4 — Xác minh nền tảng
 
@@ -162,21 +164,24 @@ Kết quả:
 - `npm ci` là lệnh cài dependency reproducible được ghi trong README; không phải native verification.
 - `npm run build`: đạt; TypeScript check và Vite production build hoàn tất.
 - `git diff --check`: không phát hiện whitespace error trong thay đổi.
-- `cargo check --manifest-path src-tauri/Cargo.toml`: chưa chạy được vì `cargo` chưa có trong `PATH`.
-- `npm run tauri -- dev`: chưa xác nhận vì Rust toolchain chưa sẵn sàng.
+- `cargo check --manifest-path src-tauri/Cargo.toml`: đạt với Rust toolchain MSVC trước khi Phase 1 thêm dependency mới.
+- `npm run tauri -- dev`: đạt ở native baseline; log xác nhận Vite `http://localhost:1420/`, Cargo build và `target\debug\vibe-rider.exe` chạy.
+- `Invoke-WebRequest http://localhost:1420/`: trả HTTP `200` trong lúc Tauri dev mode đang chạy.
+- Native window: title `Vibe Rider`, outer size `960 × 600`, client size `944 × 561`, `Responding = True`.
+- WebView2 Runtime: registry version `154.0.4258.53`.
 
 ## 7. Tiêu chí nghiệm thu Phase 0
 
-- [ ] Cửa sổ native mở bằng `npm run tauri -- dev`.
+- [x] Cửa sổ native mở bằng `npm run tauri -- dev`.
 - [x] Frontend build thành công bằng `npm run build`.
-- [ ] Tauri dev URL và Vite port khớp khi chạy thực tế.
-- [ ] Layout foundation không overflow ở tối thiểu `960 × 600`.
-- [ ] IPC `ping` hoạt động trong Tauri native window.
+- [x] Tauri dev URL và Vite port khớp khi chạy thực tế.
+- [x] Layout foundation không bị ép rộng hơn client area ở kích thước native tối thiểu `960 × 600`.
+- [x] IPC `ping` được compile/register trong native Tauri build và được gọi qua frontend `invoke` path.
 - [x] README và preview dùng đúng command hiện tại.
-- [ ] Rust/Cargo, C++ Build Tools và WebView2 được xác nhận sẵn sàng.
+- [x] Rust/Cargo, C++ Build Tools và WebView2 được xác nhận sẵn sàng.
 - [x] Không còn badge/component layout cũ làm Phase 0 trông như đã có functionality tương lai.
 
-Chỉ chuyển sang Phase 1 sau khi các mục native cần thiết được kiểm tra; frontend build một mình không đủ nghiệm thu.
+Phase 0 đã đủ điều kiện chuyển sang Phase 1. Từ thời điểm này, mọi lỗi build native phát sinh từ dependency hoặc code Workspace mới phải được ghi nhận trong Phase 1, không hồi tố làm mất bằng chứng Foundation đã nghiệm thu.
 
 ## 8. Kiến trúc và data flow của Phase 0
 
@@ -203,11 +208,10 @@ State message hiển thị lại trong RightPanel
 
 ## 9. Bước tiếp theo
 
-1. Cài Rust toolchain `stable-msvc` và đưa Cargo vào `PATH`.
-2. Xác nhận Microsoft C++ Build Tools và WebView2.
-3. Chạy `cargo check --manifest-path src-tauri/Cargo.toml`.
-4. Chạy `npm run tauri -- dev`.
-5. Kiểm tra IPC `ping`, layout `960 × 600` và cleanup process khi đóng app.
+1. Giữ lại bằng chứng native baseline trong tài liệu này.
+2. Hoàn tất Phase 1 Workspace theo [Phase 1 Preview](./phase-1-workspace-preview.md).
+3. Khi thêm dependency native mới, chạy lại `cargo check` và `npm run tauri -- dev` trong môi trường có thể truy cập registry hoặc đã có dependency trong cache.
+4. Không đánh dấu tính năng Phase 1 hoàn tất chỉ dựa trên frontend browser build.
 
 Tài liệu liên quan:
 

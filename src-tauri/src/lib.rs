@@ -1,6 +1,10 @@
 #[cfg(debug_assertions)]
 use std::path::PathBuf;
 
+mod workspace;
+
+use workspace::{open_workspace, WorkspaceState};
+
 #[tauri::command]
 fn ping() -> String {
     "pong from Rust".to_string()
@@ -19,7 +23,9 @@ pub fn run() {
     }
 
     tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![ping])
+        .manage(WorkspaceState::default())
+        .plugin(tauri_plugin_dialog::init())
+        .invoke_handler(tauri::generate_handler![ping, open_workspace])
         .run(context)
         .expect("error while running Vibe Rider");
 }

@@ -150,6 +150,8 @@ src-tauri/tauri.conf.json            # Window và Vite configuration
 
 ### Phase 1 — Workspace
 
+Kế hoạch chi tiết: [Phase 1 — Workspace](Phase_1_Workspace_Plan.md).
+
 **Mục tiêu:** mở một thư mục local và duyệt cây thư mục lazy-loaded bằng Rust filesystem.
 
 **Kiến thức:** path, directory entry, absolute/relative path, IPC request/response, containment và lazy loading.
@@ -362,10 +364,10 @@ Phase hiện tại: **Phase 0 — Foundation, chưa nghiệm thu hoàn tất**.
 | Terminal-first layout mock | Đã triển khai |
 | IPC `ping` proof-of-boundary | Có trong code, native chưa xác minh |
 | `npm run build` | Đã đạt |
-| `rustc` / `cargo` trong `PATH` | Chưa có |
+| `rustc` / `cargo` trong `PATH` | Đã có `1.99.0`, toolchain `stable-x86_64-pc-windows-msvc`; kiểm tra 2026-10-03 |
 | Tauri native dev mode | Chưa xác minh |
 
-Task kế tiếp là **0.4 — Xác minh nền tảng** sau khi cài Rust `stable-msvc`, C++ Build Tools và xác nhận WebView2:
+Task kế tiếp là **0.4 — Xác minh nền tảng**. Rust `stable-msvc` đã có; cần xác nhận C++ Build Tools, WebView2 và chạy lại native verification:
 
 ```powershell
 cargo check --manifest-path src-tauri/Cargo.toml

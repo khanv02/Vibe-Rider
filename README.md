@@ -6,7 +6,7 @@ Vibe Rider là một desktop IDE local-first, terminal-first dành cho developer
 
 ## Trạng thái hiện tại
 
-Project đang ở **Phase 0 — Foundation** và chưa nghiệm thu native hoàn tất.
+Phase 0 — Foundation đã hoàn tất nghiệm thu native trên Windows. Working tree hiện có implementation Phase 1 — Workspace đang tiếp tục phát triển và chưa nghiệm thu native; các bằng chứng Foundation được ghi trong [Phase 0 Preview](docs/phase-0-foundation-preview.md).
 
 Đã có:
 
@@ -221,3 +221,4 @@ Chỉ chuyển phase sau khi tiêu chí nghiệm thu của phase hiện tại đ
 
 - [Project Instruction](agents/rules/Project_Instruction.md) — vision, scope, architecture và working style.
 - [Phase 0 Preview](docs/phase-0-foundation-preview.md) — bằng chứng và trạng thái Phase 0 hiện tại.
+- [Phase 1 Workspace](docs/phase-1-workspace-preview.md) — phạm vi, contract, tiến độ và tiêu chí nghiệm thu Workspace.
