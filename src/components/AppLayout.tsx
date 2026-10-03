@@ -1,10 +1,12 @@
 import type { ReactNode } from "react";
+import type { TerminalViewState } from "../terminal/types";
 import { StatusBar } from "./StatusBar";
 
 interface AppLayoutProps {
   children: ReactNode;
   isOpeningWorkspace: boolean;
   onOpenWorkspace: () => void;
+  terminalState: TerminalViewState;
   workspaceName: string | null;
 }
 
@@ -12,6 +14,7 @@ export function AppLayout({
   children,
   isOpeningWorkspace,
   onOpenWorkspace,
+  terminalState,
   workspaceName,
 }: AppLayoutProps) {
   return (
@@ -44,7 +47,7 @@ export function AppLayout({
         </div>
       </header>
       <section className="app-body">{children}</section>
-      <StatusBar workspaceName={workspaceName} />
+      <StatusBar terminalState={terminalState} workspaceName={workspaceName} />
     </main>
   );
 }

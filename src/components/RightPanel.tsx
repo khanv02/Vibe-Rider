@@ -1,9 +1,12 @@
 import type { WorkspaceDescriptor } from "../workspace/types";
+import type { WorkspaceExplorerController } from "../workspace/useWorkspaceExplorer";
+import { ExplorerPanel } from "./ExplorerPanel";
 
 type ActiveTool = "git" | "explorer";
 
 interface RightPanelProps {
   activeTool: ActiveTool;
+  explorer: WorkspaceExplorerController;
   ipcMessage: string;
   onCheckIpc: () => void;
   onOpenWorkspace: () => void;
@@ -13,7 +16,7 @@ interface RightPanelProps {
 }
 
 const tools: Array<{ icon: string; id: ActiveTool; label: string }> = [
-  { icon: "⎇", id: "git", label: "Git" },
+  { icon: "⌘", id: "git", label: "Git" },
   { icon: "▱", id: "explorer", label: "Explorer" },
 ];
 
@@ -24,6 +27,7 @@ const plannedTools = [
 
 export function RightPanel({
   activeTool,
+  explorer,
   ipcMessage,
   onCheckIpc,
   onOpenWorkspace,
@@ -42,7 +46,10 @@ export function RightPanel({
             <button
               aria-current={activeTool === tool.id ? "page" : undefined}
               aria-label={tool.label}
-              className={`rail-tool rail-tool-enabled${activeTool === tool.id ? " rail-tool-active" : ""}`}
+              className={
+                "rail-tool rail-tool-enabled" +
+                (activeTool === tool.id ? " rail-tool-active" : "")
+              }
               key={tool.id}
               onClick={() => onSelectTool(tool.id)}
               title={tool.label}
@@ -56,11 +63,11 @@ export function RightPanel({
           ))}
           {plannedTools.map((tool) => (
             <button
-              aria-label={`${tool.label}, planned tool`}
+              aria-label={tool.label + ", planned tool"}
               className="rail-tool"
               disabled
               key={tool.label}
-              title={`${tool.label} — planned tool`}
+              title={tool.label + " — planned tool"}
               type="button"
             >
               <span className="rail-icon" aria-hidden="true">
@@ -86,16 +93,11 @@ export function RightPanel({
           </header>
           <div className="tool-panel-content">
             {workspace ? (
-              <div className="workspace-summary">
-                <div className="tool-placeholder-icon" aria-hidden="true">
-                  ▱
-                </div>
-                <h3>{workspace.name}</h3>
-                <p className="workspace-path" title={workspace.rootPath}>
-                  {workspace.rootPath}
-                </p>
-                <p>Workspace đã mở. Cây thư mục sẽ được tải ở task Directory API.</p>
-              </div>
+              <ExplorerPanel
+                explorer={explorer}
+                onOpenWorkspace={onOpenWorkspace}
+                workspace={workspace}
+              />
             ) : (
               <div className="tool-placeholder">
                 <div className="tool-placeholder-icon" aria-hidden="true">
@@ -128,7 +130,7 @@ export function RightPanel({
           <div className="tool-panel-content">
             <div className="tool-placeholder">
               <div className="tool-placeholder-icon" aria-hidden="true">
-                ⎇
+                ⌘
               </div>
               <h3>Git panel placeholder</h3>
               <p>

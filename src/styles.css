@@ -258,6 +258,13 @@ button {
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.18);
 }
 
+.terminal-card-single {
+  flex: 1;
+  border: 1px solid #2a3441;
+  border-radius: 8px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.18);
+}
+
 .terminal-card {
   display: flex;
   flex-direction: column;
@@ -318,6 +325,141 @@ button {
   color: #8996a8;
   font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
   font-size: 11px;
+}
+
+.terminal-core-body {
+  justify-content: flex-start;
+  gap: 18px;
+}
+
+.terminal-xterm-host {
+  flex: 1 1 auto;
+  min-height: 240px;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid #202b38;
+  border-radius: 5px;
+  background: #0d1117;
+  overflow: hidden;
+}
+
+.terminal-xterm-host .xterm {
+  height: 100%;
+}
+
+.terminal-runtime-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  min-width: 0;
+  color: #5d6e82;
+  font-size: 10px;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+}
+
+.terminal-runtime-meta span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.terminal-empty-state,
+.terminal-session-details {
+  min-width: 0;
+}
+
+.terminal-session-details dl {
+  display: grid;
+  gap: 8px;
+  max-width: 760px;
+  margin: 22px 0 0;
+}
+
+.terminal-session-details dl div {
+  display: grid;
+  grid-template-columns: 80px minmax(0, 1fr);
+  gap: 12px;
+}
+
+.terminal-session-details dt {
+  color: #5d6e82;
+}
+
+.terminal-session-details dd {
+  overflow: hidden;
+  margin: 0;
+  color: #d4dce7;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.terminal-actions {
+  display: flex;
+  align-items: center;
+}
+
+.terminal-action-button {
+  padding: 8px 11px;
+  border: 1px solid #77c9ac;
+  border-radius: 5px;
+  color: #0d1715;
+  background: #91e1c3;
+  font-size: 10px;
+  font-weight: 750;
+  cursor: pointer;
+}
+
+.terminal-action-button:hover {
+  background: #a8ebd0;
+}
+
+.terminal-action-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.terminal-stop-button {
+  border-color: #7b4b53;
+  color: #f0c4c8;
+  background: #2b191d;
+}
+
+.terminal-stop-button:hover {
+  background: #3a2025;
+}
+
+.terminal-error {
+  max-width: 760px;
+  margin: 0;
+  padding: 10px;
+  border: 1px solid #6a4147;
+  border-radius: 5px;
+  color: #e1a8ad;
+  background: #28191d;
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.terminal-led-idle,
+.status-terminal-dot-idle {
+  background: #536174;
+  box-shadow: none;
+}
+
+.terminal-led-starting,
+.terminal-led-closing,
+.terminal-led-exited,
+.status-terminal-dot-starting,
+.status-terminal-dot-closing,
+.status-terminal-dot-exited {
+  background: #e6b86a;
+  box-shadow: 0 0 9px rgba(230, 184, 106, 0.42);
+}
+
+.terminal-led-error,
+.status-terminal-dot-error {
+  background: #d97982;
+  box-shadow: 0 0 9px rgba(217, 121, 130, 0.42);
 }
 
 .terminal-note,
@@ -491,6 +633,7 @@ button {
   flex: 1;
   flex-direction: column;
   min-height: 0;
+  overflow: auto;
   padding: 15px 14px;
 }
 
@@ -565,6 +708,254 @@ button {
   background: #28191d;
   font-size: 9px;
   line-height: 1.5;
+}
+
+.explorer-panel {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.explorer-workspace-heading {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 10px;
+  min-width: 0;
+}
+
+.explorer-workspace-heading .workspace-summary {
+  min-width: 0;
+}
+
+.explorer-workspace-heading .tool-placeholder-icon {
+  margin-bottom: 10px;
+}
+
+.explorer-actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 4px;
+}
+
+.explorer-icon-button,
+.explorer-open-button,
+.explorer-node-error button,
+.explorer-error button {
+  border: 1px solid #38584f;
+  border-radius: 4px;
+  color: #91e1c3;
+  background: #172b28;
+  font-size: 9px;
+  cursor: pointer;
+}
+
+.explorer-icon-button {
+  width: 25px;
+  height: 25px;
+  padding: 0;
+  font-size: 15px;
+}
+
+.explorer-open-button {
+  padding: 6px 7px;
+}
+
+.explorer-icon-button:hover,
+.explorer-open-button:hover,
+.explorer-node-error button:hover,
+.explorer-error button:hover {
+  background: #213c36;
+}
+
+.explorer-tree {
+  flex: 1;
+  min-height: 110px;
+  margin: 17px -6px 10px;
+  padding: 7px 0;
+  overflow: auto;
+  border-top: 1px solid #242d39;
+  border-bottom: 1px solid #242d39;
+}
+
+.explorer-node,
+.explorer-node-children {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.explorer-entry {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  min-height: 27px;
+  padding-top: 2px;
+  padding-right: 5px;
+  padding-bottom: 2px;
+}
+
+.explorer-entry:hover,
+.explorer-entry-selected {
+  background: #1b2b2d;
+}
+
+.explorer-toggle {
+  display: grid;
+  flex: 0 0 19px;
+  place-items: center;
+  width: 19px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  color: #778797;
+  background: transparent;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.explorer-toggle:hover {
+  color: #91e1c3;
+}
+
+.explorer-toggle-leaf {
+  cursor: default;
+  color: #4e6070;
+  font-size: 10px;
+}
+
+.explorer-entry-label {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  gap: 6px;
+  padding: 2px 0;
+  border: 0;
+  color: #c7d0db;
+  background: transparent;
+  font-size: 10px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.explorer-entry-label:hover {
+  color: #f0f4f6;
+}
+
+.explorer-kind {
+  flex: 0 0 auto;
+  min-width: 26px;
+  color: #637787;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-size: 7px;
+  font-weight: 750;
+  letter-spacing: 0.04em;
+}
+
+.explorer-kind-directory {
+  color: #e6b86a;
+}
+
+.explorer-kind-file {
+  color: #91e1c3;
+}
+
+.explorer-kind-link {
+  color: #c49be8;
+}
+
+.explorer-entry-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.explorer-node-children {
+  border-left: 1px solid #293b3e;
+  margin-left: 16px;
+}
+
+.explorer-state {
+  margin: 0;
+  padding: 8px 12px;
+  color: #68798b;
+  font-size: 9px;
+  line-height: 1.5;
+}
+
+.explorer-error,
+.explorer-node-error {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 6px;
+  padding: 8px;
+  border: 1px solid #6a4147;
+  border-radius: 4px;
+  color: #e1a8ad;
+  background: #28191d;
+  font-size: 9px;
+  line-height: 1.5;
+}
+
+.explorer-error p {
+  min-width: 0;
+  margin: 0;
+}
+
+.explorer-node-error {
+  margin: 3px 5px;
+  padding: 5px 6px;
+}
+
+.explorer-node-error span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.explorer-node-error button,
+.explorer-error button {
+  flex: 0 0 auto;
+  padding: 4px 6px;
+}
+
+.explorer-selection {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+  padding: 8px 9px;
+  border: 1px solid #293744;
+  border-radius: 5px;
+  color: #8493a5;
+  background: #0d141a;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-size: 9px;
+}
+
+.explorer-selection .panel-kicker {
+  margin: 0;
+  color: #718c83;
+}
+
+.explorer-selection > span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.explorer-icon-button:focus-visible,
+.explorer-open-button:focus-visible,
+.explorer-toggle:focus-visible,
+.explorer-entry-label:focus-visible,
+.explorer-node-error button:focus-visible,
+.explorer-error button:focus-visible {
+  outline: 2px solid #91e1c3;
+  outline-offset: 1px;
 }
 
 .foundation-check {

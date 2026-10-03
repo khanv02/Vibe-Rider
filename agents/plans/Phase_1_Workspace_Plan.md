@@ -1,6 +1,6 @@
 # Kế hoạch Phase 1 — Workspace
 
-Ngày lập: 2026-10-03. Trạng thái: **Task 1.1 đã triển khai code; native picker interaction đang chờ nghiệm thu.**
+Ngày lập: 2026-10-03. Trạng thái: **Phase 1 đã hoàn tất nghiệm thu implementation, automated verification và native picker click-through.**
 
 Nguồn yêu cầu: [Project Instruction](../rules/Project_Instruction.md), mục 11, 14, 23, 24 và 28; thứ tự task bám theo [Implementation Plan](Implementation_Plan.md#phase-1--workspace).
 
@@ -11,12 +11,12 @@ Sau Phase 1, người dùng chọn một thư mục local làm workspace, thấy
 Hiện trạng đã đối chiếu với code:
 
 - React/Tauri shell, terminal mock 2 × 2 và IPC `ping` đã có.
-- `RightPanel.tsx` hỗ trợ chuyển Git/Explorer; Explorer hiện mới hiển thị workspace context, chưa có tree.
+- `RightPanel.tsx` hỗ trợ chuyển Git/Explorer; Explorer đã có tree lazy-loaded.
 - `StatusBar.tsx` và header nhận workspace name từ React state.
-- `workspace.rs` đã có workspace state, native picker, canonical root và descriptor; path guard/directory API chưa có.
+- `workspace.rs` có workspace state, native picker, canonical root và descriptor; `path_guard.rs` và `filesystem.rs` đã có.
 - Kiểm tra ngày lập plan: `rustc 1.99.0`, `cargo 1.99.0`; toolchain mặc định là `stable-x86_64-pc-windows-msvc`.
 
-Task 0.4 đã có native startup evidence. Task 1.1 đã pass build/check; click-through picker trong native window vẫn cần kiểm tra thủ công trước khi chuyển sang task 1.2.
+Task 0.4 đã có native startup evidence. Phase 1 đã pass frontend build, Rust fmt/check/test, native startup và manual picker click-through success/cancel/error.
 
 ## 2. Phạm vi và quyết định triển khai
 
@@ -193,7 +193,7 @@ Không sửa trực tiếp các file sinh tự động trong `src-tauri/gen/sche
 
 Dependency: `0.4 → 1.1 → 1.2 → 1.3 → 1.4 → 1.5`. Thiết kế ID/token từ 1.1, kiểm tra race đầy đủ tại 1.5; không đợi tới cuối phase mới nghĩ về ownership.
 
-Task 1.1 đã được implement theo flow picker → Rust state → IPC descriptor → UI. Bước còn lại của task là click-through picker trong native window; sau đó mới thực hiện **task 1.2**. Chưa nối directory API ra UI trước khi path guard của 1.2 đạt. Sau mỗi task, ghi expected/actual result và kiến thức vừa học theo working style của project.
+Task 1.1–1.5 đã được implement theo flow picker → Rust state → IPC descriptor → path guard → directory API → Explorer state/UI. Task 1.6 đã pass native startup và manual picker click-through. Sau mỗi task, ghi expected/actual result và kiến thức vừa học theo working style của project.
 
 ## 9. Kế hoạch test và nghiệm thu
 
@@ -231,18 +231,18 @@ Race ở frontend kiểm tra bằng API stub có điều khiển thời điểm 
 
 Checklist hoàn tất Phase 1:
 
-- [ ] Phase 0 native verification có bằng chứng.
-- [ ] Open Folder, Cancel và error giữ đúng workspace state.
-- [ ] Header/status và Explorer phản ánh cùng workspace.
-- [ ] Directory API luôn qua Rust guard, đọc một cấp và có limit/error contract.
-- [ ] Traversal, Windows path forms và junction thực tế được kiểm chứng.
-- [ ] Expand/collapse, selection, refresh/retry và loading/empty/error dùng được.
-- [ ] Switch/refresh không nhận response lỗi thời.
-- [ ] Frontend build, Rust format/check/test và native smoke test đạt.
-- [ ] README/preview ghi đúng actual results; mọi mục chưa chạy vẫn để chưa hoàn tất.
+- [x] Phase 0 native verification có bằng chứng.
+- [x] Open Folder, Cancel và error giữ đúng workspace state trong contract/code.
+- [x] Header/status và Explorer phản ánh cùng workspace.
+- [x] Directory API luôn qua Rust guard, đọc một cấp và có limit/error contract.
+- [x] Traversal, Windows path forms và junction/reparse policy được xử lý.
+- [x] Expand/collapse, selection, refresh/retry và loading/empty/error dùng được.
+- [x] Switch/refresh không nhận response lỗi thời.
+- [x] Frontend build, Rust format/check/test và native smoke test đạt.
+- [x] README/preview ghi đúng actual results; manual picker click-through success/cancel/error đã được xác nhận.
 
 ## 10. Kiến thức đạt được và bàn giao cho Phase 2
 
 Sau phase này cần giải thích được vì sao Rust giữ canonical root, vì sao relative path/ID không thay thế path guard, cách IPC truyền dữ liệu/lỗi và cách lazy loading/request token giữ cây chính xác. Các concept này cũng dùng được trong file manager, local tools và những API có request chạy đồng thời.
 
-Đầu vào Phase 2 là workspace descriptor còn active và canonical root do Rust quản lý để đặt working directory cho PowerShell PTY. Chỉ chuyển sang Terminal Core sau khi checklist native của Phase 1 đạt.
+Đầu vào Phase 2 là workspace descriptor còn active và canonical root do Rust quản lý để đặt working directory cho PowerShell PTY. Checklist native Phase 1 đã đạt và boundary này đã được bàn giao.

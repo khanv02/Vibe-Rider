@@ -19,6 +19,12 @@ struct WorkspaceRecord {
     root: PathBuf,
 }
 
+#[derive(Clone, Debug)]
+pub(crate) struct WorkspaceSnapshot {
+    pub id: String,
+    pub root: PathBuf,
+}
+
 #[derive(Clone, Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct WorkspaceDescriptor {
@@ -35,7 +41,7 @@ pub struct WorkspaceError {
 }
 
 impl WorkspaceError {
-    fn new(code: impl Into<String>, message: impl Into<String>) -> Self {
+    pub(crate) fn new(code: impl Into<String>, message: impl Into<String>) -> Self {
         Self {
             code: code.into(),
             message: message.into(),
@@ -71,6 +77,9 @@ pub async fn open_workspace(
             "Đường dẫn đã chọn không phải là thư mục.",
         ));
     }
+
+    std::fs::read_dir(&root)
+        .map_err(|error| io_error("PERMISSION_DENIED", "đọc workspace", error))?;
 
     let root_path = root.to_str().ok_or_else(|| {
         WorkspaceError::new(
@@ -109,20 +118,37 @@ pub async fn open_workspace(
     Ok(Some(descriptor))
 }
 
-#[allow(dead_code)]
 impl WorkspaceState {
-    pub fn active_root(&self) -> Option<PathBuf> {
-        self.active
-            .lock()
-            .ok()
-            .and_then(|active| active.as_ref().map(|workspace| workspace.root.clone()))
+    pub(crate) fn active_snapshot(&self) -> Result<Option<WorkspaceSnapshot>, WorkspaceError> {
+        let active = self.active.lock().map_err(|_| {
+            WorkspaceError::new("STATE_UNAVAILABLE", "Không thể đọc workspace hiện tại.")
+        })?;
+
+        Ok(active.as_ref().map(|workspace| WorkspaceSnapshot {
+            id: workspace.descriptor.id.clone(),
+            root: workspace.root.clone(),
+        }))
     }
 
-    pub fn active_descriptor(&self) -> Option<WorkspaceDescriptor> {
-        self.active.lock().ok().and_then(|active| {
-            active
-                .as_ref()
-                .map(|workspace| workspace.descriptor.clone())
-        })
+    pub(crate) fn while_workspace_is_active<T>(
+        &self,
+        workspace_id: &str,
+        operation: impl FnOnce() -> T,
+    ) -> Result<Option<T>, WorkspaceError> {
+        let active = self.active.lock().map_err(|_| {
+            WorkspaceError::new(
+                "STATE_UNAVAILABLE",
+                "Không thể kiểm tra workspace hiện tại.",
+            )
+        })?;
+
+        if active
+            .as_ref()
+            .is_some_and(|workspace| workspace.descriptor.id == workspace_id)
+        {
+            Ok(Some(operation()))
+        } else {
+            Ok(None)
+        }
     }
 }

@@ -1,25 +1,24 @@
+import type { TerminalViewState } from "../terminal/types";
+
 interface StatusBarProps {
+  terminalState: TerminalViewState;
   workspaceName: string | null;
 }
 
-const terminalIds = ["T1", "T2", "T3", "T4"];
-
-export function StatusBar({ workspaceName }: StatusBarProps) {
+export function StatusBar({ terminalState, workspaceName }: StatusBarProps) {
   return (
     <footer className="status-bar">
-      <div className="status-terminals" aria-label="Terminal preview status">
-        {terminalIds.map((terminalId) => (
-          <span className="status-terminal" key={terminalId}>
-            <span className="status-terminal-dot" aria-hidden="true" />
-            {terminalId}
-          </span>
-        ))}
+      <div className="status-terminals" aria-label="Terminal status">
+        <span className="status-terminal">
+          <span className={`status-terminal-dot status-terminal-dot-${terminalState}`} aria-hidden="true" />
+          T1 {terminalState.toUpperCase()}
+        </span>
       </div>
       <div className="status-spacer" />
       <div className="status-context">
         <span>Workspace: {workspaceName ?? "none"}</span>
         <span className="status-separator" aria-hidden="true" />
-        <span>Phase 1 / Workspace</span>
+        <span>Phase 2 / Terminal Core / Task 2.5</span>
       </div>
     </footer>
   );

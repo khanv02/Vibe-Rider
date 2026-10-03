@@ -144,7 +144,7 @@ src-tauri/tauri.conf.json            # Window và Vite configuration
 - [ ] **0.1 — Kiểm tra môi trường Windows:** Node.js, npm, Rust `stable-msvc`, C++ Build Tools, WebView2 và Git. Ghi rõ tool nào thiếu.
 - [ ] **0.2 — Hoàn thiện scaffold:** Tauri 2 + React + TypeScript + Vite, một package manager và một lockfile; kiểm tra frontend build.
 - [x] **0.3 — Dựng app shell:** mock bốn terminal 2 × 2, activity rail bên phải, Git mặc định và status bar.
-- [ ] **0.4 — Xác minh nền tảng:** native Tauri dev mode, IPC `ping`, frontend build, Rust check và layout ở cửa sổ tối thiểu.
+- [x] **0.4 — Xác minh nền tảng:** native Tauri dev mode, IPC `ping`, frontend build, Rust check và layout ở cửa sổ tối thiểu.
 
 **Expected result:** cửa sổ native mở được, terminal là vùng chính, supporting tools nằm bên phải và không có tính năng Phase 1 trở đi được giả làm đã hoạt động.
 
@@ -172,15 +172,17 @@ Explorer hiển thị một cấp children
 
 **Task:**
 
-- [ ] **1.1 — Workspace contract:** open-folder flow, root path, workspace name/id và lỗi hợp lệ.
-- [ ] **1.2 — Path guard:** chặn `..`, path ngoài root, absolute path không hợp lệ và symlink/junction thoát root.
-- [ ] **1.3 — Directory API:** trả children một cấp gồm tên, path và loại entry; không recursive scan.
-- [ ] **1.4 — Explorer UI:** expand, collapse, refresh, loading, empty và error state.
-- [ ] **1.5 — Workspace switch:** bỏ request/cây cũ, cleanup state liên quan và không trả kết quả IPC cũ.
+- [x] **1.1 — Workspace contract:** open-folder flow, root path, workspace name/id và lỗi hợp lệ.
+- [x] **1.2 — Path guard:** chặn `..`, path ngoài root, absolute path không hợp lệ và symlink/junction/reparse traversal.
+- [x] **1.3 — Directory API:** trả children một cấp gồm tên, path và loại entry; không recursive scan.
+- [x] **1.4 — Explorer UI:** expand, collapse, refresh, loading, empty và error state.
+- [x] **1.5 — Workspace switch:** bỏ request/cây cũ, cleanup state liên quan và không trả kết quả IPC cũ.
 
 **Nghiệm thu:** mở được folder có dấu/khoảng trắng; cancel không mất state; path traversal và junction thoát root bị chặn; repository lớn không bị đọc đệ quy.
 
 ### Phase 2 — Terminal Core
+
+Kế hoạch chi tiết: [Phase 2 — Terminal Core](Phase_2_Terminal_Core_Plan.md).
 
 **Mục tiêu:** một PowerShell terminal hoạt động thật trong workspace.
 
@@ -207,11 +209,11 @@ PowerShell stdout/stderr → PTY reader → IPC → xterm.js
 
 **Task:**
 
-- [ ] **2.1 — Spawn PTY:** tạo PowerShell tại workspace, environment và kích thước ban đầu; trả session ID.
-- [ ] **2.2 — Stream output:** reader loop → IPC stream/channel → xterm; giữ Unicode/ANSI và giới hạn buffer.
-- [ ] **2.3 — Send input:** route theo session ID; hỗ trợ Enter, phím mũi tên, paste và Ctrl+C.
-- [ ] **2.4 — Resize:** pane → xterm fit → rows/columns PTY; không spawn lại shell.
-- [ ] **2.5 — Lifecycle:** running/exited/error, close/restart, unregister listener và cleanup process con.
+- [x] **2.1 — Spawn PTY:** tạo PowerShell tại workspace, environment và kích thước ban đầu; trả session ID.
+- [x] **2.2 — Stream output:** reader loop → IPC stream/channel → xterm; giữ Unicode/ANSI và giới hạn buffer.
+- [x] **2.3 — Send input:** route theo session ID; hỗ trợ Enter, phím mũi tên, paste và Ctrl+C.
+- [x] **2.4 — Resize:** pane → xterm fit → rows/columns PTY; không spawn lại shell.
+- [x] **2.5 — Lifecycle:** running/exited/error, close/restart, unregister listener và cleanup process con.
 
 **Nghiệm thu:** `echo hello`, `Get-Location`, lệnh output liên tục, Ctrl+C, resize và đóng app đều hoạt động đúng.
 
@@ -355,19 +357,20 @@ Không chuyển phase chỉ vì code đã được viết. Native feature phải
 
 ## 6. Trạng thái hiện tại và bước tiếp theo
 
-Phase hiện tại: **Phase 0 — Foundation, chưa nghiệm thu hoàn tất**.
+Phase hiện tại: **Phase 2 — Terminal Core đã hoàn tất nghiệm thu; sẵn sàng chuyển sang Phase 3.**
 
 | Hạng mục | Trạng thái |
 | --- | --- |
 | React + TypeScript + Vite scaffold | Có |
 | Tauri config và Rust entry point | Có |
 | Terminal-first layout mock | Đã triển khai |
-| IPC `ping` proof-of-boundary | Có trong code, native chưa xác minh |
+| Phase 2 PTY/xterm/input/resize/lifecycle | Đã triển khai; automated/native PTY tests pass |
+| IPC `ping` proof-of-boundary | Native đã xác minh |
 | `npm run build` | Đã đạt |
 | `rustc` / `cargo` trong `PATH` | Đã có `1.99.0`, toolchain `stable-x86_64-pc-windows-msvc`; kiểm tra 2026-10-03 |
-| Tauri native dev mode | Chưa xác minh |
+| Tauri native dev mode | Đã xác minh |
 
-Task kế tiếp là **0.4 — Xác minh nền tảng**. Rust `stable-msvc` đã có; cần xác nhận C++ Build Tools, WebView2 và chạy lại native verification:
+Phase 1 và Phase 2 đã qua implementation, automated verification và native UI click-through. Task kế tiếp theo roadmap là Phase 3 Four Terminals.
 
 ```powershell
 cargo check --manifest-path src-tauri/Cargo.toml

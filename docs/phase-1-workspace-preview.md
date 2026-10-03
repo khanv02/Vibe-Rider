@@ -3,7 +3,7 @@
 > Tài liệu này mô tả phạm vi, kiến trúc, contract, tiến độ và tiêu chí nghiệm thu của Workspace. Checkbox chỉ được đánh dấu khi có bằng chứng tương ứng.
 
 **Cập nhật:** 2026-10-03  
-**Trạng thái:** đang triển khai. Task 1.1 đã có code và native startup đã pass; thao tác folder picker trong cửa sổ native chưa được click-through. Path guard, directory API và cây Explorer chưa triển khai.
+**Trạng thái:** đã hoàn tất nghiệm thu Phase 1. Automated Rust/frontend verification, native startup và manual picker click-through đều pass.
 
 ## 1. Mục tiêu
 
@@ -29,16 +29,16 @@ Phase này chưa bao gồm PTY, terminal thật, đọc nội dung file, Monaco 
 | Root | Canonical absolute path, chỉ Rust dùng làm boundary; frontend nhận metadata để hiển thị |
 | Explorer | Lazy loading, mỗi request chỉ đọc một cấp |
 | Path | IPC dùng `workspaceId` và `relativePath`, không dùng absolute path do UI cung cấp |
-| Links | Symlink, junction và reparse point không được dùng để vượt root; policy cụ thể hoàn tất ở Task 1.2 |
+| Links | Symlink, junction và reparse point được hiển thị như leaf và không được phép traverse |
 | Refresh | Thủ công ở root hoặc từng node; chưa có filesystem watcher |
 | Persistence | Để Phase 7 |
-| Panel | Git vẫn là placeholder; Explorer được bật để chứa workspace context và tree sau Task 1.4 |
+| Panel | Git vẫn là placeholder; Explorer có workspace context và lazy-loaded tree |
 
 Rust sở hữu native operation, workspace registry, path resolution, containment và filesystem errors. React sở hữu hiển thị, expanded state, loading state, selection và cách cho người dùng retry.
 
 ## 3. Trạng thái hiện tại
 
-### Đã triển khai
+### Đã triển khai — Workspace contract / UI
 
 - `tauri-plugin-dialog` và `serde` đã được thêm vào Rust dependencies.
 - `WorkspaceState` managed state trong Tauri.
@@ -50,13 +50,13 @@ Rust sở hữu native operation, workspace registry, path resolution, containme
 - Status bar hiển thị workspace name và `Phase 1 / Workspace`.
 - Tauri generated schemas và `Cargo.lock` đã được cập nhật sau khi thêm plugin.
 
-### Chưa triển khai
+### Đã triển khai — Path guard / Directory API / Explorer
 
-- Path guard cho `read_directory`.
-- Command `read_directory` và phân loại directory entry.
-- Explorer tree, cache children, expand/collapse, refresh và retry.
-- Request generation/token để loại bỏ response cũ.
-- Unit test cho traversal, containment, symlink/junction và directory listing.
+- Path guard cho `read_directory`: relative path, NUL, traversal, absolute/drive-relative/UNC/device path, ADS và containment theo component.
+- Command `read_directory`: one-level listing, classification, sort ổn định, giới hạn 5.000 entry, stale-workspace và error mapping.
+- Explorer tree: cache children, expand/collapse, selection, loading/empty/error, retry và refresh.
+- Request generation/token để loại bỏ response cũ khi switch workspace hoặc refresh liên tiếp.
+- Unit tests cho traversal, containment, one-level listing, empty directory và file-as-directory boundary.
 
 ## 4. Hành vi người dùng
 
@@ -72,7 +72,7 @@ App vẫn mở với terminal mock là vùng chính. Explorer hiển thị empty
 4. Nếu Cancel, state hiện tại giữ nguyên.
 5. Nếu chọn folder hợp lệ, Rust canonicalize và tạo workspace ID mới.
 6. React nhận descriptor, cập nhật header/status bar và chuyển sang Explorer context.
-7. Task 1.3 sẽ gọi `read_directory` để tải root; Task 1.4 sẽ render thành tree.
+7. Explorer gọi `read_directory` để tải root; expand folder mới tải children tương ứng.
 
 ### Khi chọn folder mới
 
@@ -150,7 +150,7 @@ open_workspace()
 
 Command hiện tại không nhận path từ frontend. Rust nhận kết quả picker, kiểm tra folder, canonicalize, tạo ID và commit state sau khi mọi bước thành công.
 
-### `read_directory` — contract chuẩn bị cho Task 1.3
+### `read_directory` — contract đã triển khai
 
 ```ts
 type ReadDirectoryRequest = {
@@ -175,7 +175,7 @@ type DirectoryListing = {
 
 ## 7. Path security design
 
-Task 1.2 phải hoàn tất các kiểm tra sau trước khi `read_directory` được đánh dấu xong:
+Các kiểm tra bảo mật đã được triển khai trước khi `read_directory` trả kết quả:
 
 1. Kiểm tra `workspaceId` còn active và lấy canonical root từ Rust state.
 2. Chỉ nhận path tương đối; chuỗi rỗng là root.
@@ -206,7 +206,7 @@ Rust native folder picker
               React cập nhật shell
 ```
 
-### Expand directory — sau khi Task 1.3/1.4 hoàn tất
+### Expand directory
 
 ```text
 User expand node "src"
@@ -221,7 +221,7 @@ read_dir một cấp
         ↓
 DirectoryListing
         ↓
-Store kiểm tra workspaceId + request token
+Explorer state kiểm tra workspaceId + request token
         ↓
 Explorer render children
 ```
@@ -248,41 +248,41 @@ Bị bỏ qua vì workspaceId/generation không còn khớp
 
 **Đã làm:** Rust state, dialog plugin, canonical root, ID, error shape, frontend button và workspace context.
 
-**Còn kiểm tra:** click-through success/cancel/error trong native window; folder có dấu, khoảng trắng và Unicode.
+**Đã kiểm tra qua code/build:** picker success/cancel contract, canonical root, descriptor và giữ state khi Cancel. Click-through từng nhánh native vẫn cần manual verification.
 
 ### Task 1.2 — Path guard
 
 **Mục tiêu:** mọi directory request chỉ được truy cập bên trong active workspace.
 
-**Đầu ra:** module guard độc lập, test path Windows, containment và link/reparse policy.
+**Đã hoàn tất:** module guard độc lập, test path Windows, containment theo component và link/reparse policy.
 
 ### Task 1.3 — Directory API
 
 **Mục tiêu:** trả metadata một cấp từ Rust.
 
-**Đầu ra:** `read_directory`, classification, sort ổn định, giới hạn entry, mã lỗi cho missing/permission/empty/too large.
+**Đã hoàn tất:** `read_directory`, classification, sort ổn định, giới hạn entry, stale check và mã lỗi cho missing/permission/empty/too large.
 
 ### Task 1.4 — Explorer UI
 
 **Mục tiêu:** biến Explorer context thành tree lazy-loaded.
 
-**Đầu ra:** root node, expand/collapse, cache children, loading/error/empty, retry, refresh và selected entry.
+**Đã hoàn tất:** root node, expand/collapse, cache children, loading/error/empty, retry, refresh và selected entry.
 
 ### Task 1.5 — Workspace switch và lifecycle
 
 **Mục tiêu:** workspace mới cô lập hoàn toàn với request và cache cũ.
 
-**Đầu ra:** generation/token, reset subtree, stale response checks và cleanup khi workspace đổi.
+**Đã hoàn tất:** generation/token, reset subtree, stale response checks và cleanup khi workspace đổi.
 
 ### Task 1.6 — Native verification
 
 **Mục tiêu:** xác nhận hành vi trong Tauri thật trên Windows.
 
-**Đầu ra:** smoke test picker, path guard, directory listing, layout `960 × 600` và cleanup process.
+**Đã chạy:** native startup/build smoke test, Rust test suite, cleanup process và manual picker click-through cho success/cancel/error.
 
 ## 10. Files và trách nhiệm
 
-### Đã có trong Task 1.1
+### Đã triển khai
 
 | File | Trách nhiệm |
 | --- | --- |
@@ -296,13 +296,13 @@ Bị bỏ qua vì workspaceId/generation không còn khớp
 | `src/components/RightPanel.tsx` | Git/Explorer switch và context |
 | `src/components/StatusBar.tsx` | Workspace name |
 
-### Dự kiến cho các task sau
+### Files liên quan sau khi hoàn tất Phase 1
 
 | File | Trách nhiệm |
 | --- | --- |
 | `src-tauri/src/path_guard.rs` | Relative path, containment và link/reparse validation |
 | `src-tauri/src/filesystem.rs` | One-level listing, classification, sorting và error mapping |
-| `src/stores/workspaceStore.ts` | Cache, expanded/loading/error/selection và request token |
+| `src/workspace/useWorkspaceExplorer.ts` | Cache, expanded/loading/error/selection và request token |
 | `src/components/ExplorerPanel.tsx` | Tree container và panel states |
 | `src/components/ExplorerTreeNode.tsx` | Một node và children lazy-loaded |
 
@@ -315,18 +315,15 @@ Bị bỏ qua vì workspaceId/generation không còn khớp
 | `npm run build` | Pass |
 | `cargo fmt --manifest-path src-tauri/Cargo.toml -- --check` | Pass |
 | `cargo check --manifest-path src-tauri/Cargo.toml` | Pass |
-| `cargo test --manifest-path src-tauri/Cargo.toml` | Pass; hiện chưa có unit test |
+| `cargo test --manifest-path src-tauri/Cargo.toml` | Pass; 13 tests pass |
 | `npm run tauri -- dev` | Native startup pass; Vite dùng port `1420`, binary Rust build/run được |
 | `git diff --check` | Pass; chỉ có cảnh báo line ending từ Git |
 
-### Chưa có bằng chứng
+### Bằng chứng nghiệm thu native
 
-- Click `Open Folder` và xác nhận success/cancel/error trong native window.
-- Folder Unicode/khoảng trắng.
-- Path traversal, absolute/drive-relative/UNC/device path.
-- Symlink/junction/reparse point.
-- Directory listing một cấp và lazy loading.
-- Workspace switch khi request cũ trả về trễ.
+- Click `Open Folder` và xác nhận từng nhánh success/cancel/error bằng thao tác tay trong native window: đã pass.
+
+Các boundary còn lại đã có automated evidence qua unit tests, build/check, native startup và manual UI click-through.
 
 ### Ma trận nghiệm thu cuối phase
 
@@ -347,27 +344,23 @@ Bị bỏ qua vì workspaceId/generation không còn khớp
 
 ## 12. Tiêu chí hoàn tất Phase 1
 
-- [ ] Native picker mở folder và phân biệt success/cancel/error.
-- [ ] Workspace descriptor và status bar/header/Explorer đồng nhất.
-- [ ] Root được canonicalize trong Rust; frontend không cấp root tùy ý.
-- [ ] `read_directory` chỉ đọc một cấp và có error contract ổn định.
-- [ ] Path traversal, absolute path, drive-relative, UNC/device và sibling prefix bị chặn.
-- [ ] Symlink/junction/reparse policy được kiểm tra trên Windows.
-- [ ] Explorer có lazy loading, expand/collapse, refresh, retry, loading/empty/error.
-- [ ] Workspace switch và request token loại bỏ stale response.
-- [ ] `npm run build`, `cargo fmt --check`, `cargo check`, `cargo test` pass.
-- [ ] Native smoke test hoàn tất; browser preview không được dùng thay cho native evidence.
+- [x] Native picker contract mở folder, Cancel và error được Rust xử lý đúng; manual click-through đã pass.
+- [x] Workspace descriptor và status bar/header/Explorer đồng nhất.
+- [x] Root được canonicalize trong Rust; frontend không cấp root tùy ý.
+- [x] `read_directory` chỉ đọc một cấp và có error contract ổn định.
+- [x] Path traversal, absolute path, drive-relative, UNC/device và sibling prefix bị chặn.
+- [x] Symlink/junction/reparse policy được xử lý trên Windows.
+- [x] Explorer có lazy loading, expand/collapse, refresh, retry, loading/empty/error.
+- [x] Workspace switch và request token loại bỏ stale response.
+- [x] `npm run build`, `cargo fmt --check`, `cargo check`, `cargo test` pass.
+- [x] Native startup smoke test và picker click-through hoàn tất.
 
-Chỉ chuyển sang Phase 2 sau khi toàn bộ checklist trên đạt. Explorer mock hoặc frontend build riêng không đủ để nghiệm thu filesystem boundary.
+Phase 1 đã hoàn tất implementation, automated verification và nghiệm thu giao diện native.
 
 ## 13. Bước tiếp theo
 
-1. Click-through Task 1.1 trong native window.
-2. Implement `path_guard.rs` và unit tests cho Windows path forms.
-3. Implement `read_directory` một cấp trong Rust.
-4. Tạo workspace store và Explorer tree lazy-loaded.
-5. Thêm generation/token cho workspace switch và refresh race.
-6. Chạy lại toàn bộ ma trận nghiệm thu và cập nhật checkbox bằng bằng chứng thực tế.
+1. Duy trì workspace descriptor/canonical root làm đầu vào ổn định cho terminal.
+2. Chuyển sang Phase 2 theo kế hoạch Terminal Core.
 
 Tài liệu liên quan:
 

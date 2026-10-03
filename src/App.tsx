@@ -3,8 +3,10 @@ import { invoke } from "@tauri-apps/api/core";
 import { AppLayout } from "./components/AppLayout";
 import { RightPanel } from "./components/RightPanel";
 import { TerminalWorkspace } from "./components/TerminalWorkspace";
+import type { TerminalViewState } from "./terminal/types";
 import { formatWorkspaceError, openWorkspace } from "./workspace/workspaceApi";
 import type { WorkspaceDescriptor } from "./workspace/types";
+import { useWorkspaceExplorer } from "./workspace/useWorkspaceExplorer";
 
 function App() {
   const [ipcMessage, setIpcMessage] = useState("Chưa kiểm tra");
@@ -12,6 +14,8 @@ function App() {
   const [workspaceError, setWorkspaceError] = useState<string | null>(null);
   const [isOpeningWorkspace, setIsOpeningWorkspace] = useState(false);
   const [activeTool, setActiveTool] = useState<"git" | "explorer">("git");
+  const [terminalState, setTerminalState] = useState<TerminalViewState>("idle");
+  const explorer = useWorkspaceExplorer(workspace);
 
   async function checkIpc() {
     try {
@@ -47,11 +51,13 @@ function App() {
     <AppLayout
       isOpeningWorkspace={isOpeningWorkspace}
       onOpenWorkspace={chooseWorkspace}
+      terminalState={terminalState}
       workspaceName={workspace?.name ?? null}
     >
-      <TerminalWorkspace />
+      <TerminalWorkspace onStateChange={setTerminalState} workspace={workspace} />
       <RightPanel
         activeTool={activeTool}
+        explorer={explorer}
         ipcMessage={ipcMessage}
         onCheckIpc={checkIpc}
         onOpenWorkspace={chooseWorkspace}
