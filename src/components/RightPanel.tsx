@@ -2,15 +2,23 @@ import type { WorkspaceDescriptor } from "../workspace/types";
 import type { WorkspaceExplorerController } from "../workspace/useWorkspaceExplorer";
 import type { EditorPanelSize, RightPanelId } from "../panels/types";
 import { ExplorerPanel } from "./ExplorerPanel";
+import { EditorPanel } from "./EditorPanel";
+import { GitPanel } from "./GitPanel";
+import type { WorkspaceEditorController } from "../editor/useWorkspaceEditor";
+import type { DirectoryEntry } from "../workspace/types";
+import type { WorkspaceGitController } from "../git/useWorkspaceGit";
 
 interface RightPanelProps {
   activePanel: RightPanelId;
   editorSize: EditorPanelSize;
   explorer: WorkspaceExplorerController;
+  editor: WorkspaceEditorController;
+  git: WorkspaceGitController;
   ipcMessage: string;
   onCheckIpc: () => void;
   onEditorSizeChange: (size: EditorPanelSize) => void;
   onOpenWorkspace: () => void;
+  onOpenFile: (entry: DirectoryEntry) => void;
   onSelectPanel: (panel: RightPanelId) => void;
   open: boolean;
   workspace: WorkspaceDescriptor | null;
@@ -27,20 +35,20 @@ const tools: Array<{ icon: string; id: RightPanelId; label: string }> = [
 export function RightPanel({
   activePanel,
   editorSize,
+  editor,
+  git,
   explorer,
   ipcMessage,
   onCheckIpc,
   onEditorSizeChange,
   onOpenWorkspace,
+  onOpenFile,
   onSelectPanel,
   open,
   workspace,
   workspaceError,
 }: RightPanelProps) {
   function selectTool(panel: RightPanelId) {
-    if (panel === activePanel && open) {
-      return;
-    }
     onSelectPanel(panel);
   }
 
@@ -77,13 +85,15 @@ export function RightPanel({
 
       <div className="right-panel-views">
         <section className="tool-panel tool-view" hidden={activePanel !== "git"} aria-labelledby="git-panel-title">
-          <ToolHeading badge="DEFAULT" id="git-panel-title" title="Git" />
+          <ToolHeading badge={editorSize === "expanded" ? "EXPANDED" : "NORMAL"} id="git-panel-title" title="Git" />
           <div className="tool-panel-content">
-            <div className="tool-placeholder">
-              <div className="tool-placeholder-icon" aria-hidden="true">⌘</div>
-              <h3>Git panel placeholder</h3>
-              <p>Git operations sẽ được tích hợp ở Phase 6. Panel hiện giữ slot ổn định cho workspace.</p>
-            </div>
+            <GitPanel
+              controller={git}
+              expanded={editorSize === "expanded"}
+              onExpandedChange={onEditorSizeChange}
+              onOpenFile={(relativePath) => onOpenFile({ name: relativePath.split("/").pop() ?? relativePath, relativePath, kind: "file" })}
+              workspace={workspace}
+            />
             <section className="foundation-check" aria-labelledby="foundation-check-title">
               <div className="foundation-check-heading">
                 <div>
@@ -104,7 +114,7 @@ export function RightPanel({
           <ToolHeading badge="PHASE 1" id="explorer-panel-title" title="Explorer" />
           <div className="tool-panel-content">
             {workspace ? (
-              <ExplorerPanel explorer={explorer} onOpenWorkspace={onOpenWorkspace} workspace={workspace} />
+              <ExplorerPanel explorer={explorer} onOpenFile={onOpenFile} onOpenWorkspace={onOpenWorkspace} workspace={workspace} />
             ) : (
               <div className="tool-placeholder">
                 <div className="tool-placeholder-icon" aria-hidden="true">◱</div>
@@ -120,15 +130,7 @@ export function RightPanel({
         <section className="tool-panel tool-view" hidden={activePanel !== "editor"} aria-labelledby="editor-panel-title">
           <ToolHeading badge={editorSize === "expanded" ? "EXPANDED" : "NORMAL"} id="editor-panel-title" title="Editor" />
           <div className="tool-panel-content editor-panel-content">
-            <div className="tool-placeholder">
-              <div className="tool-placeholder-icon" aria-hidden="true">&lt;&gt;</div>
-              <h3>Editor placeholder</h3>
-              <p>Monaco, file tabs và model state sẽ được tích hợp ở Phase 5.</p>
-              <div className="editor-size-controls" aria-label="Editor panel size">
-                <button className={editorSize === "normal" ? "size-button size-button-active" : "size-button"} onClick={() => onEditorSizeChange("normal")} type="button">Normal</button>
-                <button className={editorSize === "expanded" ? "size-button size-button-active" : "size-button"} onClick={() => onEditorSizeChange("expanded")} type="button">Expanded</button>
-              </div>
-            </div>
+            <EditorPanel controller={editor} editorSize={editorSize} onEditorSizeChange={onEditorSizeChange} />
           </div>
         </section>
 
@@ -152,7 +154,7 @@ function ToolHeading({ badge, id, title }: { badge: string; id: string; title: s
     <header className="tool-panel-heading">
       <div>
         <p className="panel-kicker">SUPPORTING TOOL</p>
-        <h2 id={id}>{title}</h2>
+        <h2 id={id} tabIndex={-1}>{title}</h2>
       </div>
       <span className="default-badge">{badge}</span>
     </header>

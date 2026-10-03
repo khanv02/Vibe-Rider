@@ -6,6 +6,7 @@ interface ExplorerTreeNodeProps {
   entry: DirectoryEntry;
   explorer: ExplorerState;
   onRetry: (relativePath: string) => void;
+  onOpenFile: (entry: DirectoryEntry) => void;
   onSelect: (entry: DirectoryEntry) => void;
   onToggle: (relativePath: string) => void;
 }
@@ -15,6 +16,7 @@ export function ExplorerTreeNode({
   entry,
   explorer,
   onRetry,
+  onOpenFile,
   onSelect,
   onToggle,
 }: ExplorerTreeNodeProps) {
@@ -50,7 +52,13 @@ export function ExplorerTreeNode({
         )}
         <button
           className="explorer-entry-label"
-          onClick={() => (isDirectory ? onToggle(entry.relativePath) : onSelect(entry))}
+          onClick={() => {
+            if (isDirectory) onToggle(entry.relativePath);
+            else {
+              onSelect(entry);
+              if (entry.kind === "file") onOpenFile(entry);
+            }
+          }}
           title={entry.relativePath}
           type="button"
         >
@@ -86,6 +94,7 @@ export function ExplorerTreeNode({
                   explorer={explorer}
                   key={child.relativePath}
                   onRetry={onRetry}
+                  onOpenFile={onOpenFile}
                   onSelect={onSelect}
                   onToggle={onToggle}
                 />

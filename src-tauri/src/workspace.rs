@@ -1,19 +1,54 @@
 use std::path::PathBuf;
 use std::sync::{
     atomic::{AtomicU64, Ordering},
-    Mutex,
+    Arc, Mutex,
 };
 
 use serde::Serialize;
 use tauri::{AppHandle, Manager, State, WebviewWindow};
 use tauri_plugin_dialog::DialogExt;
 
+use crate::git::GitService;
 use crate::terminal::TerminalManager;
 
 #[derive(Default)]
 pub struct WorkspaceState {
     active: Mutex<Option<WorkspaceRecord>>,
     next_id: AtomicU64,
+    activity: Arc<Mutex<WorkspaceActivity>>,
+}
+
+#[derive(Default)]
+struct WorkspaceActivity {
+    mutation: bool,
+    transition: bool,
+}
+
+// A lease records activity without keeping the workspace mutex locked while
+// filesystem/process work runs. Lock order when acquiring: activity -> active.
+pub(crate) struct WorkspaceMutationLease {
+    activity: Arc<Mutex<WorkspaceActivity>>,
+    pub snapshot: WorkspaceSnapshot,
+}
+
+pub(crate) struct WorkspaceTransitionLease {
+    activity: Arc<Mutex<WorkspaceActivity>>,
+}
+
+impl Drop for WorkspaceMutationLease {
+    fn drop(&mut self) {
+        if let Ok(mut activity) = self.activity.lock() {
+            activity.mutation = false;
+        }
+    }
+}
+
+impl Drop for WorkspaceTransitionLease {
+    fn drop(&mut self) {
+        if let Ok(mut activity) = self.activity.lock() {
+            activity.transition = false;
+        }
+    }
 }
 
 struct WorkspaceRecord {
@@ -84,6 +119,17 @@ pub async fn open_workspace(
     std::fs::read_dir(&root)
         .map_err(|error| io_error("PERMISSION_DENIED", "đọc workspace", error))?;
 
+    let git = app.state::<GitService>();
+    activate_workspace(&app, window.label(), &state, &git, root).map(Some)
+}
+
+pub(crate) fn activate_workspace(
+    app: &AppHandle,
+    window_label: &str,
+    state: &WorkspaceState,
+    git: &GitService,
+    root: PathBuf,
+) -> Result<WorkspaceDescriptor, WorkspaceError> {
     let root_path = root.to_str().ok_or_else(|| {
         WorkspaceError::new(
             "UNSUPPORTED_PATH_ENCODING",
@@ -107,9 +153,16 @@ pub async fn open_workspace(
         root_path: root_path.to_owned(),
     };
 
+    // Revalidate activity after the picker. A busy operation must not have its
+    // terminals torn down before the workspace swap is rejected.
+    if let Some(previous) = state.active_snapshot()? {
+        git.ensure_workspace_idle(&previous.id)
+            .map_err(|error| WorkspaceError::new(error.code, error.message))?;
+    }
+    let _transition = state.begin_transition()?;
     if let Some(previous) = state.active_snapshot()? {
         app.state::<TerminalManager>()
-            .close_workspace(&previous.id, window.label())
+            .close_workspace(&previous.id, window_label)
             .map_err(|error| WorkspaceError::new(error.code, error.message))?;
     }
 
@@ -124,10 +177,61 @@ pub async fn open_workspace(
         root,
     });
 
-    Ok(Some(descriptor))
+    Ok(descriptor)
 }
 
 impl WorkspaceState {
+    pub(crate) fn begin_mutation(
+        &self,
+        workspace_id: &str,
+    ) -> Result<WorkspaceMutationLease, WorkspaceError> {
+        let mut activity = self.activity.lock().map_err(|_| {
+            WorkspaceError::new(
+                "STATE_UNAVAILABLE",
+                "Không thể kiểm tra workspace activity.",
+            )
+        })?;
+        if activity.transition || activity.mutation {
+            return Err(WorkspaceError::new(
+                "WORKSPACE_BUSY",
+                "Workspace đang chuyển hoặc có thao tác ghi. Hãy chờ hoặc huỷ thao tác đó.",
+            ));
+        }
+        let snapshot = self
+            .active_snapshot()?
+            .ok_or_else(|| WorkspaceError::new("NO_WORKSPACE", "Hãy mở workspace trước."))?;
+        if snapshot.id != workspace_id {
+            return Err(WorkspaceError::new(
+                "STALE_WORKSPACE",
+                "Workspace đã thay đổi.",
+            ));
+        }
+        activity.mutation = true;
+        Ok(WorkspaceMutationLease {
+            activity: Arc::clone(&self.activity),
+            snapshot,
+        })
+    }
+
+    pub(crate) fn begin_transition(&self) -> Result<WorkspaceTransitionLease, WorkspaceError> {
+        let mut activity = self.activity.lock().map_err(|_| {
+            WorkspaceError::new(
+                "STATE_UNAVAILABLE",
+                "Không thể kiểm tra workspace activity.",
+            )
+        })?;
+        if activity.mutation || activity.transition {
+            return Err(WorkspaceError::new(
+                "WORKSPACE_BUSY",
+                "Chờ hoặc huỷ thao tác ghi/Git đang chạy trước khi đổi workspace.",
+            ));
+        }
+        activity.transition = true;
+        Ok(WorkspaceTransitionLease {
+            activity: Arc::clone(&self.activity),
+        })
+    }
+
     pub(crate) fn active_snapshot(&self) -> Result<Option<WorkspaceSnapshot>, WorkspaceError> {
         let active = self.active.lock().map_err(|_| {
             WorkspaceError::new("STATE_UNAVAILABLE", "Không thể đọc workspace hiện tại.")
@@ -159,5 +263,71 @@ impl WorkspaceState {
         } else {
             Ok(None)
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn state() -> WorkspaceState {
+        let state = WorkspaceState::default();
+        *state.active.lock().unwrap() = Some(WorkspaceRecord {
+            descriptor: WorkspaceDescriptor {
+                id: "fixture".into(),
+                name: "fixture".into(),
+                root_path: "fixture".into(),
+            },
+            root: PathBuf::from("fixture"),
+        });
+        state
+    }
+
+    #[test]
+    fn mutation_lease_blocks_save_and_switch_but_does_not_lock_snapshot() {
+        let state = state();
+        let lease = state.begin_mutation("fixture").unwrap();
+        assert_eq!(lease.snapshot.id, "fixture");
+        assert!(state.active_snapshot().unwrap().is_some());
+        assert_eq!(
+            state.begin_mutation("fixture").err().unwrap().code,
+            "WORKSPACE_BUSY"
+        );
+        assert_eq!(
+            state.begin_transition().err().unwrap().code,
+            "WORKSPACE_BUSY"
+        );
+        drop(lease);
+        assert!(state.begin_transition().is_ok());
+    }
+
+    #[test]
+    fn transition_blocks_new_mutations_and_release_is_recoverable() {
+        let state = state();
+        let transition = state.begin_transition().unwrap();
+        assert_eq!(
+            state.begin_mutation("fixture").err().unwrap().code,
+            "WORKSPACE_BUSY"
+        );
+        drop(transition);
+        assert!(state.begin_mutation("fixture").is_ok());
+    }
+
+    #[test]
+    fn stale_mutation_does_not_reserve_workspace() {
+        let state = state();
+        assert_eq!(
+            state.begin_mutation("old").err().unwrap().code,
+            "STALE_WORKSPACE"
+        );
+        assert!(state.begin_mutation("fixture").is_ok());
+        assert_eq!(
+            WorkspaceState::default()
+                .begin_mutation("old")
+                .err()
+                .unwrap()
+                .code,
+            "NO_WORKSPACE"
+        );
     }
 }

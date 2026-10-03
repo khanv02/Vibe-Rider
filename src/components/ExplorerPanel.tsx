@@ -6,10 +6,11 @@ import { ROOT_PATH } from "../workspace/useWorkspaceExplorer";
 interface ExplorerPanelProps {
   explorer: WorkspaceExplorerController;
   onOpenWorkspace: () => void;
+  onOpenFile: (entry: DirectoryEntry) => void;
   workspace: WorkspaceDescriptor;
 }
 
-export function ExplorerPanel({ explorer, onOpenWorkspace, workspace }: ExplorerPanelProps) {
+export function ExplorerPanel({ explorer, onOpenFile, onOpenWorkspace, workspace }: ExplorerPanelProps) {
   const rootEntries = explorer.entriesByPath[ROOT_PATH];
   const rootLoading = explorer.loadingPaths[ROOT_PATH] === true;
   const rootError = explorer.errorsByPath[ROOT_PATH];
@@ -64,6 +65,7 @@ export function ExplorerPanel({ explorer, onOpenWorkspace, workspace }: Explorer
                 explorer={explorer}
                 key={entry.relativePath}
                 onRetry={explorer.retryDirectory}
+                onOpenFile={onOpenFile}
                 onSelect={explorer.selectEntry}
                 onToggle={explorer.toggleDirectory}
               />

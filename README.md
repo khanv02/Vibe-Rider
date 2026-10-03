@@ -69,6 +69,33 @@ Chi tiết implementation, actual results và checklist release: [Phase 3 — Fo
 
 Thứ tự đã thực hiện: **4.1 Panel contract → 4.2 Switch panel → 4.3 Resize/collapse**; **4.4 State retention** đang chờ native verification. Kế hoạch: [Phase 4 Plan](agents/plans/Phase_4_Right_Panel_Plan.md). Checklist và actual results: [Phase 4 Right Panel](docs/phase-4-right-panel-preview.md).
 
+### Phase 5 — Editor
+
+Đã triển khai core Phase 5. Monaco đã thay Editor placeholder trong right panel, mở file từ Explorer, giữ nhiều tab/dirty buffer và cung cấp Diff Viewer read-only dùng chung. Native startup đã pass; click-through các thao tác Editor/layout còn pending.
+
+- Thứ tự: **5.1 File API → 5.2 Open file → 5.3 Edit/save → 5.4 Tabs/lifecycle → 5.5 Shared Diff Viewer**.
+- Rust giữ filesystem boundary, UTF-8/BOM/newline, giới hạn file và disk revision; Save không silently overwrite file đã đổi bên ngoài.
+- Model giữ text/undo/view state qua đổi tab/panel; Save/Discard/Cancel bảo vệ draft khi đóng tab, đổi workspace hoặc thoát app.
+- Trước khi đánh dấu nghiệm thu phải kiểm lại regression layout 4 terminal/tools tự hide và thống nhất active-tool click giữa code/tài liệu. Native acceptance Phase 3/4 vẫn là gate riêng.
+
+Thiết kế, DTO, files và checkpoints: [Phase 5 Editor Plan](agents/plans/Phase_5_Editor_Plan.md). Tiến độ và checklist nghiệm thu: [Phase 5 Editor](docs/phase-5-editor-preview.md).
+
+### Phase 6 — Git
+
+Implementation update: Git status/branch, scoped diff, stage/unstage/restore, reviewed commit, upstream push, refresh and editor disk-change handling are implemented. Git UI review thêm Normal/Expanded, structured push target, old/new preview, List/3 columns và Stage all/Unstage all. Automated checks pass; native acceptance remains pending.
+
+Git status/branch, staged/unstaged diff qua Shared Diff Viewer, stage/unstage/restore, reviewed commit/push và refresh giữ dirty editor buffer đã triển khai. Automated checks đạt; native acceptance Phase 3/4/5 vẫn là điều kiện chuyển phase.
+
+Contract, checkpoints 6.1–6.6 và ma trận nghiệm thu: [Phase 6 Git](docs/phase-6-git-preview.md).
+
+Kế hoạch triển khai, baseline code, files/ownership và thứ tự task: [Phase 6 Git Plan](agents/plans/Phase_6_Git_Plan.md).
+
+### Phase 7 — UX (kế hoạch song song Phase 6)
+
+Đã lập plan cho shortcuts, layout polish, persistence và restore workspace; Git UI/mutations, runtime guard và guard wait/cancel đã tích hợp. Dogfooding và nghiệm thu toàn Phase 7 vẫn chờ native matrix.
+
+Phạm vi, dependency, ownership files và checklist: [Phase 7 UX Plan](agents/plans/Phase_7_UX_Plan.md). Core 7.1–7.4, workspace/Git transition guard và Git UI/mutations đã triển khai; native matrix và dogfooding còn chờ.
+
 ## Product direction
 
 ```text
@@ -142,7 +169,7 @@ React cập nhật header/status và khởi tạo Explorer root listing
 | Layer | Công nghệ | Trạng thái |
 | --- | --- | --- |
 | Desktop shell | Tauri 2 | Đã có; native startup đã kiểm tra |
-| System core | Rust | Có workspace state, `ping`, `open_workspace`, `read_directory`, `terminal_spawn`, `terminal_write`, `terminal_resize`, `terminal_ack`, `terminal_close` |
+| System core | Rust | Có workspace state, `ping`, `open_workspace`, `read_directory`, `read_file`, `write_file`, `terminal_spawn`, `terminal_write`, `terminal_resize`, `terminal_ack`, `terminal_close` |
 | Native dialog | `tauri-plugin-dialog` | Đã tích hợp cho Open Folder |
 | Serialization | `serde` | Đã dùng cho workspace DTO/error |
 | Frontend | React + TypeScript | Đã có |
@@ -313,12 +340,22 @@ src/
 │  ├─ RightPanelResizeHandle.tsx        # Pointer/keyboard resize và ARIA separator
 │  ├─ ExplorerPanel.tsx                 # Explorer tree, states, refresh và selection
 │  ├─ ExplorerTreeNode.tsx              # Node lazy-loaded và retry
+│  ├─ EditorPanel.tsx                   # Editor toolbar, tabs, dirty close và Diff entry point
+│  ├─ MonacoEditor.tsx                   # Monaco model view, layout và Ctrl+S
+│  ├─ SharedDiffViewer.tsx               # Read-only snapshot diff
+│  ├─ UnsavedChangesDialog.tsx           # Save/Discard/Cancel guard
 │  ├─ StatusBar.tsx                     # Workspace name và terminal status
 │  └─ TerminalPane.tsx                   # Xterm, session lifecycle và actions của một pane
 ├─ workspace/
    ├─ types.ts                          # Workspace và directory DTO/error types
    ├─ workspaceApi.ts                   # Typed invoke wrapper và error formatting
    └─ useWorkspaceExplorer.ts           # Cache, expansion, loading và request tokens
+├─ editor/
+   ├─ editorApi.ts                       # Typed read_file/write_file IPC
+   ├─ editorStore.ts                     # Zustand tab metadata
+   ├─ useWorkspaceEditor.ts              # Model registry, open/save/dirty lifecycle
+   ├─ modelRegistry.ts                   # Monaco model ownership và cleanup
+   └─ monacoRuntime.ts                   # Local worker, theme và language mapping
 ├─ terminal/
    ├─ types.ts                          # Terminal session/event/error DTOs
    └─ terminalApi.ts                    # Tauri Channel và terminal command wrappers
@@ -334,6 +371,7 @@ src-tauri/
 │  ├─ workspace.rs                      # Workspace state, dialog flow và descriptor
 │  ├─ path_guard.rs                     # Relative path, containment và link policy
 │  ├─ filesystem.rs                     # One-level directory listing và error mapping
+│  ├─ file_editor.rs                    # UTF-8 file read/write, revision và safe replacement
 │  └─ terminal/
 │     ├─ mod.rs                         # Multi-session manager và IPC commands
 │     ├─ session.rs                     # PTY session, Channel và cleanup
@@ -347,7 +385,10 @@ docs/
 ├─ phase-1-workspace-preview.md         # Phase 1 scope, status and checklist
 ├─ phase-2-terminal-core-preview.md     # Phase 2 scope, status and checklist
 ├─ phase-3-four-terminals-preview.md    # Phase 3 scope, design and checklist
-└─ phase-4-right-panel-preview.md       # Phase 4 scope, contract and checklist
+├─ phase-4-right-panel-preview.md       # Phase 4 scope, contract and checklist
+├─ phase-5-editor-preview.md            # Phase 5 implementation evidence and checklist
+├─ phase-6-git-preview.md               # Phase 6 design, contracts and acceptance checklist
+└─ phase-7-ux-preview.md                # Phase 7 implementation evidence and native gate
 ```
 
 Không sửa trực tiếp file sinh tự động trong `src-tauri/gen/schemas`; capability/config phải được cập nhật theo cách gọi thực tế và không cấp filesystem permission rộng cho frontend.
@@ -375,8 +416,8 @@ Không sửa trực tiếp file sinh tự động trong `src-tauri/gen/schemas`;
 | 2 — Terminal Core | Một PowerShell PTY hoạt động thật |
 | 3 — Four Terminals | Multi-session manager, bốn PTY độc lập và layout 1/2/4; native smoke đang chờ |
 | 4 — Right Panel | Frontend switch/collapse/resize đã triển khai; native state-retention smoke đang chờ |
-| 5 — Editor | Monaco, tabs, save, dirty state và diff |
-| 6 — Git | Status, diff, add, restore, commit và push |
+| 5 — Editor | Core đã triển khai; Monaco, tabs, safe save, dirty state và read-only diff; native click-through đang chờ |
+| 6 — Git | Core status/diff, stage/unstage/restore, commit/push và refresh đã triển khai; native acceptance còn chờ |
 | 7 — UX | Shortcut, persistence và dogfooding chính IDE |
 | 8 — AI Chat | Streaming chat với context do user chọn |
 | 9 — Read-only Agent | `read_file`, `list_directory`, `search_text` và read-only Git tools |
@@ -395,3 +436,9 @@ Chỉ chuyển phase sau khi tiêu chí nghiệm thu của phase hiện tại đ
 - [Phase 3 Four Terminals](docs/phase-3-four-terminals-preview.md) — implementation status, actual test results, native smoke matrix và checklist release.
 - [Phase 4 Right Panel](docs/phase-4-right-panel-preview.md) — panel contract, switch/collapse/resize, state retention và native acceptance matrix.
 - [Phase 4 Right Panel Plan](agents/plans/Phase_4_Right_Panel_Plan.md) — state/ownership, width constraints, pointer/focus, Editor Normal/Expanded và checkpoint 4.1–4.4.
+- [Phase 5 Editor Plan](agents/plans/Phase_5_Editor_Plan.md) — Monaco/model ownership, file API, save conflict, tabs/lifecycle và shared diff.
+- [Phase 5 Editor](docs/phase-5-editor-preview.md) — implementation evidence, native gate và checklist nghiệm thu.
+- [Phase 6 Git](docs/phase-6-git-preview.md) — Git CLI boundary, status/diff, mutations, refresh và checkpoints 6.1–6.6; core đã triển khai, native acceptance còn chờ.
+- [Phase 6 Git Plan](agents/plans/Phase_6_Git_Plan.md) — baseline/dependencies, architecture, API/process lifecycle, files/ownership và task checkpoints.
+- [Phase 7 UX Plan](agents/plans/Phase_7_UX_Plan.md) — phần UX song song Phase 6, contracts/ownership, persistence/restore và checkpoints tích hợp.
+- [Phase 7 UX](docs/phase-7-ux-preview.md) — core 7.1–7.4 đã triển khai; native matrix, Git coordination và dogfooding còn chờ.

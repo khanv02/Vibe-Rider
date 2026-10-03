@@ -57,7 +57,7 @@ Filesystem / PTY / process / Git CLI / ripgrep
 
 ## 3. Thứ tự phase
 
-Các phase phải triển khai theo đúng thứ tự trong `Project_Instruction.md`:
+Thứ tự mặc định theo `Project_Instruction.md`:
 
 ```text
 0 Foundation
@@ -72,6 +72,8 @@ Các phase phải triển khai theo đúng thứ tự trong `Project_Instruction
   → 9 Read-only Agent
   → 10 Coding Agent
 ```
+
+Theo yêu cầu hiện tại của user, các phần độc lập **7.1–7.4** được thực hiện song song Phase 6 theo [Phase 7 UX Plan](Phase_7_UX_Plan.md). Shared-file integration vẫn tuần tự theo owner/checkpoint; **7.5 và nghiệm thu toàn Phase 7 chờ Phase 6**, không bỏ qua native acceptance Phase 3/4/5.
 
 | Phase | Công nghệ chính | Kết quả chính |
 | --- | --- | --- |
@@ -256,21 +258,29 @@ Kế hoạch chi tiết: [Phase 4 — Right Panel](Phase_4_Right_Panel_Plan.md).
 
 ### Phase 5 — Editor
 
+Kế hoạch chi tiết: [Phase 5 — Editor](Phase_5_Editor_Plan.md). Checklist: [Phase 5 Preview](../../docs/phase-5-editor-preview.md). Trạng thái: **core đã triển khai; native click-through đang chờ**.
+
 **Mục tiêu:** mở, sửa và lưu file bằng Monaco; có Diff Editor dùng chung.
 
 **Kiến thức:** editor model, buffer, dirty state, encoding, newline, save và conflict với thay đổi bên ngoài.
 
+**Baseline gate:** kiểm lại layout 1/2/4, tools tự hide, resize/focus và state retention; thống nhất active-tool click giữa code/tài liệu trước tích hợp Editor UI. Không tự nghiệm thu Phase 3/4 khi viết kế hoạch Phase 5.
+
 **Task:**
 
-- [ ] **5.1 — File API:** `read_file` và `write_file` qua Rust path guard; quy định text/binary/size limit.
-- [ ] **5.2 — Open file:** Explorer → Monaco model/tab; syntax highlighting.
-- [ ] **5.3 — Edit/save:** dirty state, save và kiểm tra file đã đổi trước khi ghi.
-- [ ] **5.4 — Tabs/lifecycle:** nhiều tab, close và Save/Discard/Cancel.
-- [ ] **5.5 — Shared Diff Viewer:** read-only old/new snapshot cho Git và AI patch.
+- [x] **5.1 — File API:** `read_file` và `write_file` qua Rust path guard; quy định text/binary/size limit.
+- [x] **5.2 — Open file:** Explorer → Monaco model/tab; syntax highlighting.
+- [x] **5.3 — Edit/save:** dirty state, save và kiểm tra file đã đổi trước khi ghi.
+- [x] **5.4 — Tabs/lifecycle:** nhiều tab, close và Save/Discard/Cancel.
+- [x] **5.5 — Shared Diff Viewer:** read-only old/new snapshot cho Git và AI patch.
 
 **Nghiệm thu:** mở nhiều file, đổi tab không mất buffer, save đúng file, giữ Unicode/newline và diff không tự ghi filesystem.
 
+**Contract cần kiểm chứng:** UTF-8/BOM/LF/CRLF và size limit; Save kiểm disk revision, giữ edit mới trong lúc save; dirty guard trước `open_workspace` và native app close; Monaco workers chạy offline ở native release. Actual results theo checklist riêng, không dùng build evidence của phase cũ thay thế.
+
 ### Phase 6 — Git
+
+Kế hoạch chi tiết: [Phase 6 — Git](Phase_6_Git_Plan.md). Thiết kế, contracts và checklist: [Phase 6 Git Preview](../../docs/phase-6-git-preview.md). Trạng thái: **core Git service/UI đã triển khai**, automated checks đạt; native acceptance Phase 3/4/5 vẫn còn gate riêng.
 
 **Mục tiêu:** thao tác Git qua operation rõ ràng và Git CLI, không cho frontend chạy arbitrary Git command.
 
@@ -287,19 +297,25 @@ Kế hoạch chi tiết: [Phase 4 — Right Panel](Phase_4_Right_Panel_Plan.md).
 
 **Nghiệm thu:** status/diff/stage/restore/commit đúng trên repository thử nghiệm; push không làm treo UI; lỗi Git được hiển thị rõ.
 
+**Dependency và checkpoints:** hoàn tất gate native Phase 5 và regression Phase 3/4 trước tích hợp Git UI/mutations; preparation contracts/fixtures có thể làm trước. Tasks 6.1–6.6 có checkpoints về process/path/lease, NUL parser, snapshot/model ownership, destructive confirmation, staged-only commit/upstream push và refresh giữ draft. Phối hợp Phase 7 qua C0–C3, shared-file adapters có một owner tích hợp.
+
 ### Phase 7 — UX
+
+Kế hoạch chi tiết: [Phase 7 — UX, song song Phase 6](Phase_7_UX_Plan.md). Trạng thái: **core 7.1–7.4, Git UI/mutations và workspace/Git transition guard đã triển khai; native acceptance và dogfooding đang chờ**. Shortcuts/layout/persistence và phần độc lập của restore đã làm cùng Git; backend/frontend đã có wait/cancel foundation cho workspace/exit.
 
 **Mục tiêu:** dùng IDE để tiếp tục phát triển chính IDE.
 
 **Task:**
 
-- [ ] **7.1 — Shortcuts:** layout 1/2/4, focus terminal/panel và save; kiểm tra conflict trước khi chốt phím.
-- [ ] **7.2 — Layout polish:** min size, resize, focus indicator, loading/error/empty state và status bar.
-- [ ] **7.3 — Persistence:** workspace gần nhất, layout, panel mở/width; validate dữ liệu lưu.
-- [ ] **7.4 — Restore:** mở lại workspace nếu còn tồn tại và spawn shell mới; không tự chạy lại command/process cũ.
+- [x] **7.1 — Shortcuts:** core routing layout 1/2/4 và focus terminal/panel đã triển khai; native conflict/input matrix còn chờ.
+- [x] **7.2 — Layout polish:** controlled layout/focus, bounded persistence fields và status context đã triển khai; native minimum-window matrix còn chờ.
+- [x] **7.3 — Persistence:** versioned UI preferences, validation và app config write đã triển khai; native restart/storage matrix còn chờ.
+- [x] **7.4 — Restore:** remembered workspace validation, Rust restore boundary và shell mới đã triển khai; native transition matrix còn chờ.
 - [ ] **7.5 — Dogfooding:** sửa code, chạy build/test, xem Git diff và commit trong chính IDE.
 
 **Nghiệm thu:** hoàn thành một vòng sửa code → build/test → review diff → commit; restart giữ layout/workspace; không mất terminal input hoặc dirty buffer.
+
+Implementation evidence: [Phase 7 UX Preview](../../docs/phase-7-ux-preview.md). Task 7.5 và nghiệm thu toàn phase chờ native matrix/dogfooding.
 
 ### Phase 8 — AI Chat
 
@@ -363,7 +379,7 @@ Không chuyển phase chỉ vì code đã được viết. Native feature phải
 
 ## 6. Trạng thái hiện tại và bước tiếp theo
 
-Phase hiện tại: **Phase 4 — Right Panel đã triển khai frontend contract/UI; native smoke và state-retention verification đang chờ. Phase 3 native smoke vẫn là gate độc lập.**
+Phase hiện tại: **Phase 5 — Editor core đã triển khai; native click-through đang chờ. Phase 4 native smoke/state-retention và Phase 3 native smoke vẫn là gate độc lập.**
 
 | Hạng mục | Trạng thái |
 | --- | --- |
@@ -379,6 +395,10 @@ Phase hiện tại: **Phase 4 — Right Panel đã triển khai frontend contrac
 Phase 1 và Phase 2 đã qua implementation, automated verification và native UI click-through. Phase 3 Four Terminals đã triển khai multi-session manager, grid/layout 1/2/4 và actions/lifecycle; `npm run build`, `cargo fmt --check`, `cargo check`, `cargo test` (16/16) và `cargo clippy -D warnings` đã pass. Native multi-pane click-through và full smoke matrix chưa được đánh dấu nghiệm thu.
 
 Phase 4 đã triển khai state contract, switch bốn tools, full collapse/reopen, resize và Editor Normal/Expanded. Task 4.1–4.3 đã có code/build evidence; Task 4.4 còn cần native click-through để xác nhận focus, xterm/Explorer retention và min-window behavior.
+
+Phase 5 đã triển khai File API, Monaco/model registry, tabs/save/dirty guards và Shared Diff Viewer. `npm run build`, `cargo fmt --check`, `cargo test` (19/19), `cargo clippy -D warnings`, `npm run tauri -- dev` startup và `npm run tauri -- build --no-bundle` đã pass; native Editor/layout click-through còn pending.
+
+Phase 6 đã có [plan Git](Phase_6_Git_Plan.md) và [contracts/checklist](../../docs/phase-6-git-preview.md); core implementation và automated Git test evidence đã có. Native acceptance vẫn là gate riêng và không được suy ra từ build/test.
 
 ```powershell
 cargo check --manifest-path src-tauri/Cargo.toml

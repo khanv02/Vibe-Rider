@@ -21,6 +21,7 @@ import type { WorkspaceDescriptor } from "../workspace/types";
 
 interface TerminalPaneProps {
   active: boolean;
+  autoStart?: boolean;
   onFocus: () => void;
   onStateChange: (state: TerminalPaneState) => void;
   paneId: TerminalPaneId;
@@ -30,6 +31,7 @@ interface TerminalPaneProps {
 
 export function TerminalPane({
   active,
+  autoStart = false,
   onFocus,
   onStateChange,
   paneId,
@@ -51,6 +53,7 @@ export function TerminalPane({
   const inputQueueRef = useRef(Promise.resolve());
   const resizeFrameRef = useRef<number | null>(null);
   const lastGeometryRef = useRef({ rows: 0, cols: 0 });
+  const autoStartedWorkspaceRef = useRef<string | null>(null);
   workspaceRef.current = workspace;
   callbackRef.current = onStateChange;
 
@@ -198,6 +201,13 @@ export function TerminalPane({
     }
   }, [workspace?.id]);
 
+  useEffect(() => {
+    if (!autoStart || !workspace || autoStartedWorkspaceRef.current === workspace.id) return;
+    if (viewState !== "idle") return;
+    autoStartedWorkspaceRef.current = workspace.id;
+    void startTerminal(false);
+  }, [autoStart, viewState, workspace?.id]);
+
   async function startTerminal(resetBuffer: boolean) {
     if (!workspace || viewState === "starting" || viewState === "closing") return;
     const terminal = terminalRef.current;
@@ -304,6 +314,7 @@ export function TerminalPane({
   return (
     <article
       className={`terminal-card${active ? " terminal-card-active" : ""}`}
+      data-terminal-pane={paneId}
       onClick={onFocus}
       style={{ display: visible ? undefined : "none" }}
     >

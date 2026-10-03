@@ -1,12 +1,14 @@
 import { TERMINAL_PANE_IDS, type TerminalPaneId, type TerminalPaneState } from "../terminal/types";
+import type { GitBranch } from "../git/types";
 
 interface StatusBarProps {
   activePaneId: TerminalPaneId;
   terminalStates: Record<TerminalPaneId, TerminalPaneState>;
   workspaceName: string | null;
+  gitBranch: GitBranch | null;
 }
 
-export function StatusBar({ activePaneId, terminalStates, workspaceName }: StatusBarProps) {
+export function StatusBar({ activePaneId, gitBranch, terminalStates, workspaceName }: StatusBarProps) {
   return (
     <footer className="status-bar">
       <div className="status-terminals" aria-label="Terminal status">
@@ -22,9 +24,11 @@ export function StatusBar({ activePaneId, terminalStates, workspaceName }: Statu
       </div>
       <div className="status-spacer" />
       <div className="status-context">
+        <span>Git: {gitBranch?.detached ? "detached" : gitBranch?.head ?? "none"}</span>
+        <span className="status-separator" aria-hidden="true" />
         <span>Workspace: {workspaceName ?? "none"}</span>
         <span className="status-separator" aria-hidden="true" />
-        <span>Phase 3 / Four Terminals</span>
+        <span>Terminal-first workspace</span>
       </div>
     </footer>
   );

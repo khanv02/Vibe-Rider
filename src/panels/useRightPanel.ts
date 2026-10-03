@@ -16,6 +16,7 @@ export interface RightPanelController {
   closePanel: () => void;
   setPanelWidth: (width: number) => void;
   setEditorSize: (size: EditorPanelSize) => void;
+  hydrate: (state: RightPanelState) => void;
 }
 
 export function useRightPanel(bodyWidth: number): RightPanelController {
@@ -45,7 +46,7 @@ export function useRightPanel(bodyWidth: number): RightPanelController {
       const bounds = boundsFor(bodyWidth, current.activeRightPanel, current.editorSize);
       if (!Number.isFinite(width) || bounds.maxWidth < bounds.minWidth) return current;
       const nextWidth = clamp(width, bounds.minWidth, bounds.maxWidth);
-      if (current.activeRightPanel === "editor" && current.editorSize === "expanded") {
+      if ((current.activeRightPanel === "editor" || current.activeRightPanel === "git") && current.editorSize === "expanded") {
         return { ...current, editorExpandedWidth: nextWidth };
       }
       return { ...current, rightPanelWidth: nextWidth };
@@ -54,7 +55,7 @@ export function useRightPanel(bodyWidth: number): RightPanelController {
 
   const setEditorSize = useCallback((size: EditorPanelSize) => {
     setState((current) => {
-      if (current.activeRightPanel !== "editor") return current;
+      if (current.activeRightPanel !== "editor" && current.activeRightPanel !== "git") return current;
       if (size === "normal") {
         return { ...current, editorSize: "normal" };
       }
@@ -66,5 +67,9 @@ export function useRightPanel(bodyWidth: number): RightPanelController {
     });
   }, [bodyWidth]);
 
-  return { state, geometry, selectPanel, togglePanel, closePanel, setPanelWidth, setEditorSize };
+  const hydrate = useCallback((nextState: RightPanelState) => {
+    setState(nextState);
+  }, []);
+
+  return { state, geometry, selectPanel, togglePanel, closePanel, setPanelWidth, setEditorSize, hydrate };
 }

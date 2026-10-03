@@ -89,11 +89,78 @@ pub(crate) fn resolve_directory(
     Ok(canonical_target)
 }
 
+pub(crate) fn resolve_regular_file(
+    root: &Path,
+    relative_path: &str,
+) -> Result<(PathBuf, String), WorkspaceError> {
+    if relative_path.is_empty() {
+        return Err(invalid_path("File path không được rỗng."));
+    }
+
+    let relative = validate_relative_path(relative_path)?;
+    let candidate = root.join(&relative);
+    let mut cursor = root.to_path_buf();
+    for component in relative.components() {
+        let Component::Normal(value) = component else {
+            continue;
+        };
+
+        cursor.push(value);
+        let metadata =
+            fs::symlink_metadata(&cursor).map_err(|error| map_io_error("đọc file path", error))?;
+        if is_link_or_reparse(&metadata) {
+            return Err(WorkspaceError::new(
+                "LINK_NOT_SUPPORTED",
+                "Không thể đọc xuyên symbolic link hoặc junction trong workspace.",
+            ));
+        }
+    }
+
+    let canonical_root =
+        fs::canonicalize(root).map_err(|error| map_io_error("xác thực workspace", error))?;
+    let canonical_target =
+        fs::canonicalize(&candidate).map_err(|error| map_io_error("xác thực file", error))?;
+    if !is_within(&canonical_root, &canonical_target) {
+        return Err(WorkspaceError::new(
+            "OUTSIDE_WORKSPACE",
+            "File nằm ngoài workspace hiện tại.",
+        ));
+    }
+
+    let metadata =
+        fs::metadata(&canonical_target).map_err(|error| map_io_error("đọc file", error))?;
+    if !metadata.is_file() {
+        return Err(WorkspaceError::new(
+            "NOT_FILE",
+            "Path được yêu cầu không phải là file.",
+        ));
+    }
+
+    let normalized = relative
+        .components()
+        .map(|component| {
+            component
+                .as_os_str()
+                .to_str()
+                .map(ToOwned::to_owned)
+                .ok_or_else(|| {
+                    WorkspaceError::new(
+                        "UNSUPPORTED_PATH_ENCODING",
+                        "File path không thể biểu diễn bằng Unicode.",
+                    )
+                })
+        })
+        .collect::<Result<Vec<_>, _>>()?
+        .join("/");
+
+    Ok((canonical_target, normalized))
+}
+
 pub(crate) fn is_within(root: &Path, target: &Path) -> bool {
     target == root || target.starts_with(root)
 }
 
-fn is_link_or_reparse(metadata: &fs::Metadata) -> bool {
+pub(crate) fn is_link_or_reparse(metadata: &fs::Metadata) -> bool {
     if metadata.file_type().is_symlink() {
         return true;
     }

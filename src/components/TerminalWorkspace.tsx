@@ -1,12 +1,23 @@
-import { useState } from "react";
+import { forwardRef, useImperativeHandle } from "react";
 import { TERMINAL_PANE_IDS, type TerminalLayoutMode, type TerminalPaneId, type TerminalPaneState } from "../terminal/types";
 import type { WorkspaceDescriptor } from "../workspace/types";
 import { TerminalPane } from "./TerminalPane";
 
 interface TerminalWorkspaceProps {
+  activePaneId: TerminalPaneId;
+  autoStartPaneId?: TerminalPaneId | null;
+  layoutMode: TerminalLayoutMode;
   onActivePaneChange: (paneId: TerminalPaneId) => void;
+  onLayoutModeChange: (mode: TerminalLayoutMode) => void;
   onPaneStateChange: (state: TerminalPaneState) => void;
+  onVisiblePairChange: (pair: [TerminalPaneId, TerminalPaneId]) => void;
+  visiblePair: [TerminalPaneId, TerminalPaneId];
   workspace: WorkspaceDescriptor | null;
+}
+
+export interface TerminalWorkspaceHandle {
+  focusActivePane: () => void;
+  focusPane: (paneId: TerminalPaneId) => void;
 }
 
 const nextPane: Record<TerminalPaneId, TerminalPaneId> = {
@@ -16,11 +27,21 @@ const nextPane: Record<TerminalPaneId, TerminalPaneId> = {
   T4: "T1",
 };
 
-export function TerminalWorkspace({ onActivePaneChange, onPaneStateChange, workspace }: TerminalWorkspaceProps) {
-  const [layoutMode, setLayoutMode] = useState<TerminalLayoutMode>(4);
-  const [activePaneId, setActivePaneId] = useState<TerminalPaneId>("T1");
-  const [visiblePair, setVisiblePair] = useState<[TerminalPaneId, TerminalPaneId]>(["T1", "T2"]);
-
+export const TerminalWorkspace = forwardRef<TerminalWorkspaceHandle, TerminalWorkspaceProps>(function TerminalWorkspace({
+  activePaneId,
+  autoStartPaneId = null,
+  layoutMode,
+  onActivePaneChange,
+  onLayoutModeChange,
+  onPaneStateChange,
+  onVisiblePairChange,
+  visiblePair,
+  workspace,
+}, ref) {
+  useImperativeHandle(ref, () => ({
+    focusActivePane: () => focusPane(activePaneId),
+    focusPane,
+  }), [activePaneId]);
   const visiblePaneIds = layoutMode === 4
     ? TERMINAL_PANE_IDS
     : layoutMode === 1
@@ -28,11 +49,16 @@ export function TerminalWorkspace({ onActivePaneChange, onPaneStateChange, works
       : visiblePair;
 
   function selectPane(paneId: TerminalPaneId) {
-    setActivePaneId(paneId);
     onActivePaneChange(paneId);
     if (layoutMode === 2 && !visiblePair.includes(paneId)) {
-      setVisiblePair([paneId, nextPane[paneId]]);
+      onVisiblePairChange([paneId, nextPane[paneId]]);
     }
+  }
+
+  function focusPane(paneId: TerminalPaneId) {
+    const helper = document.querySelector<HTMLElement>(`[data-terminal-pane="${paneId}"] .xterm-helper-textarea`);
+    helper?.focus();
+    if (helper) onActivePaneChange(paneId);
   }
 
   return (
@@ -48,7 +74,7 @@ export function TerminalWorkspace({ onActivePaneChange, onPaneStateChange, works
               <button
                 className={`layout-button${layoutMode === mode ? " layout-button-active" : ""}`}
                 key={mode}
-                onClick={() => setLayoutMode(mode as TerminalLayoutMode)}
+                onClick={() => onLayoutModeChange(mode as TerminalLayoutMode)}
                 type="button"
               >
                 {mode}
@@ -73,6 +99,7 @@ export function TerminalWorkspace({ onActivePaneChange, onPaneStateChange, works
         {TERMINAL_PANE_IDS.map((paneId) => (
           <TerminalPane
             active={activePaneId === paneId}
+            autoStart={autoStartPaneId === paneId}
             key={paneId}
             onFocus={() => selectPane(paneId)}
             onStateChange={onPaneStateChange}
@@ -84,4 +111,4 @@ export function TerminalWorkspace({ onActivePaneChange, onPaneStateChange, works
       </div>
     </section>
   );
-}
+});

@@ -67,7 +67,7 @@ export function boundsFor(
   activeRightPanel: RightPanelState["activeRightPanel"],
   editorSize: EditorPanelSize,
 ): RightPanelBounds {
-  return activeRightPanel === "editor" && editorSize === "expanded"
+  return (activeRightPanel === "editor" || activeRightPanel === "git") && editorSize === "expanded"
     ? expandedBounds(bodyWidth)
     : normalBounds(bodyWidth);
 }
@@ -75,7 +75,7 @@ export function boundsFor(
 export function widthForState(state: RightPanelState, bodyWidth: number): number {
   if (!state.rightPanelOpen) return 0;
   const bounds = boundsFor(bodyWidth, state.activeRightPanel, state.editorSize);
-  const requested = state.activeRightPanel === "editor" && state.editorSize === "expanded"
+  const requested = (state.activeRightPanel === "editor" || state.activeRightPanel === "git") && state.editorSize === "expanded"
     ? state.editorExpandedWidth ?? Math.floor(bodyWidth * 0.6)
     : state.rightPanelWidth;
   if (bodyWidth <= 0) return Math.max(0, requested);

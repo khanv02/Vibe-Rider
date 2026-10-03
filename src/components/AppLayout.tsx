@@ -3,6 +3,7 @@ import type { CSSProperties, ReactNode } from "react";
 import { RightPanelResizeHandle } from "./RightPanelResizeHandle";
 import type { TerminalPaneId, TerminalPaneState } from "../terminal/types";
 import { StatusBar } from "./StatusBar";
+import type { GitBranch } from "../git/types";
 
 interface AppLayoutProps {
   terminalWorkspace: ReactNode;
@@ -11,6 +12,8 @@ interface AppLayoutProps {
   onOpenWorkspace: () => void;
   onBodyWidthChange: (width: number) => void;
   onClosePanel: () => void;
+  onFocusActiveTerminal: () => void;
+  notice?: string | null;
   onPanelWidthChange: (width: number) => void;
   onTogglePanel: () => void;
   panelOpen: boolean;
@@ -21,6 +24,7 @@ interface AppLayoutProps {
   activePaneId: TerminalPaneId;
   terminalStates: Record<TerminalPaneId, TerminalPaneState>;
   workspaceName: string | null;
+  gitBranch: GitBranch | null;
 }
 
 export function AppLayout({
@@ -30,6 +34,8 @@ export function AppLayout({
   onOpenWorkspace,
   onBodyWidthChange,
   onClosePanel,
+  onFocusActiveTerminal,
+  notice,
   onPanelWidthChange,
   onTogglePanel,
   panelOpen,
@@ -40,6 +46,7 @@ export function AppLayout({
   activePaneId,
   terminalStates,
   workspaceName,
+  gitBranch,
 }: AppLayoutProps) {
   const bodyRef = useRef<HTMLElement | null>(null);
 
@@ -55,9 +62,7 @@ export function AppLayout({
 
   function collapsePanel() {
     onClosePanel();
-    requestAnimationFrame(() => {
-      document.querySelector<HTMLElement>(".terminal-card-active .xterm-helper-textarea")?.focus();
-    });
+    requestAnimationFrame(onFocusActiveTerminal);
   }
 
   function toggleTools() {
@@ -104,6 +109,7 @@ export function AppLayout({
         <div className="header-status">
           <span className="status-indicator" />
           <span>{workspaceName ?? "No workspace"}</span>
+          {notice ? <span className="header-notice" title={notice}>Setup warning</span> : null}
         </div>
       </header>
       <section
@@ -127,7 +133,7 @@ export function AppLayout({
           {rightPanel}
         </div>
       </section>
-      <StatusBar activePaneId={activePaneId} terminalStates={terminalStates} workspaceName={workspaceName} />
+      <StatusBar activePaneId={activePaneId} gitBranch={gitBranch} terminalStates={terminalStates} workspaceName={workspaceName} />
     </main>
   );
 }

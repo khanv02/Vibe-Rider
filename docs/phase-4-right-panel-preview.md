@@ -62,7 +62,7 @@ Quy tắc:
 - Reject width không hữu hạn; user resize được clamp theo mode/bounds. Normal/Expanded giữ width riêng.
 - Git mặc định, panel mở, Normal width 304 px, Editor Normal khi app khởi tạo.
 - Switching panel giữ state của panel cũ trong owner tương ứng; không reset chỉ vì panel mất visibility.
-- Click tool khác mở tool đó; click lại active tool không làm panel tự collapse. Collapse dùng nút Hide tools hoặc Enter trên splitter. Switch khỏi Editor Expanded dùng Normal geometry; quay lại Editor bắt đầu Normal. Collapse/reopen cùng Editor giữ mode trước đó.
+- Click tool khác mở tool đó; click lại active tool khi panel đang mở sẽ collapse. Collapse cũng dùng nút Hide tools hoặc Enter trên splitter. Switch khỏi Editor Expanded dùng Normal geometry; quay lại Editor bắt đầu Normal. Collapse/reopen cùng Editor giữ mode trước đó.
 
 ## 4. Layout contract
 
@@ -168,7 +168,7 @@ git diff --check
 npm run tauri -- dev
 ~~~
 
-Actual automated evidence hiện có: `npm run build` pass; `cargo test --manifest-path src-tauri/Cargo.toml` pass 16/16; `npm run tauri -- dev` compile/startup pass. Frontend chưa có test runner riêng; native click-through theo ma trận bên dưới vẫn pending.
+Actual automated evidence ngày 2026-10-03: `npm run build` pass; `cargo test --manifest-path src-tauri/Cargo.toml` pass 16/16; `npm run tauri -- dev` compile/startup pass. Frontend chưa có test runner riêng; native click-through theo ma trận bên dưới vẫn pending.
 
 Ma trận native/UI:
 
