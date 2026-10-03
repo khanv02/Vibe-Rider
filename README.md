@@ -65,18 +65,14 @@ Terminal là main workspace. Git, Explorer, Editor và AI là supporting tools �
 ## Layout hiện tại
 
 ```text
-┌──────────────────────────────────────────────────────────────────────────┬────────────┐
-│ Vibe Rider      WORKSPACE                  [Open Folder]                  │            │
-├──────────────────────────────────────────────────────────────────────────┤            │
-│ MAIN WORKSPACE: TERMINAL CORE (1 SESSION)                                │ GIT /      │
-│ ┌─────────────────────────────────────────────────────────┐              │ EXPLORER   │
-│ │ T1  POWERSHELL PTY                         IDLE/RUNNING  │              │            │
-│ │ Session / Shell / PID / CWD                              │              │ workspace  │
-│ │                                      [Start / Close]     │              │ context    │
-│ └─────────────────────────────────────────────────────────┘              │            │
-├──────────────────────────────────────────────────────────────────────────┴────────────┤
-│ T1 IDLE                            Phase 2 / Task 2.5       Workspace: none          │
-└────────────────────────────────────────────────────────────────────────────────────────┘
+┌────────────────────────────────────────┬────────────┐
+│ Vibe Rider / Workspace                 │ Explorer   │
+├────────────────────────────────────────┤ Git        │
+│ Terminal Core · 1 session              │ workspace  │
+│ [Start / Close] · idle/running         │ context    │
+├────────────────────────────────────────┴────────────┤
+│ Phase 2 / Task 2.5 · Workspace: none                │
+└─────────────────────────────────────────────────────┘
 ```
 
 Terminal Core đã spawn/close PowerShell PTY thật, render output qua xterm.js, nhận input/control bytes và resize theo pane. Git vẫn là placeholder. Explorer hiện hiển thị workspace context và cây thư mục lazy-loaded sau khi mở folder.
