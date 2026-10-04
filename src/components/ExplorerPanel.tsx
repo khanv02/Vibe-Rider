@@ -213,6 +213,9 @@ export function ExplorerPanel({ explorer, gitEntries, onDeleteEntry, onOpenFile,
                 onContextMenu={openContextMenu}
                 onCreateCommit={commitInlineCreate}
                 onCreateCancel={cancelInlineCreate}
+                onMoveEntry={(sourceRelativePath, destinationDirectoryRelativePath) => {
+                  void explorer.moveEntry(sourceRelativePath, destinationDirectoryRelativePath);
+                }}
                 onSelect={explorer.selectEntry}
                 onToggle={explorer.toggleDirectory}
               />

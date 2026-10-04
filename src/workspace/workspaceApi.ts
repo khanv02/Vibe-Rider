@@ -49,6 +49,17 @@ export function deleteEntry(
   });
 }
 
+export function moveEntry(
+  workspaceId: string,
+  sourceRelativePath: string,
+  destinationDirectoryRelativePath: string,
+): Promise<EntryMutationResult> {
+  if (!isTauriRuntime()) return Promise.reject(desktopRuntimeError());
+  return invoke<EntryMutationResult>("move_entry", {
+    request: { workspaceId, sourceRelativePath, destinationDirectoryRelativePath },
+  });
+}
+
 export function saveClipboardImage(
   workspaceId: string,
   mimeType: string,

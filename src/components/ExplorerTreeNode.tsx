@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from "react";
-import type { MouseEvent } from "react";
+import type { DragEvent, MouseEvent } from "react";
 import type { CreateEntryKind } from "../workspace/types";
 import type { DirectoryEntry } from "../workspace/types";
 import type { ExplorerState } from "../workspace/useWorkspaceExplorer";
 import type { GitStatusEntry } from "../git/types";
 import { gitToneForPath } from "../git/statusTone";
+import { INTERNAL_FILE_DROP_TYPE } from "./fileDrop";
 
 export interface ExplorerInlineCreate {
   kind: CreateEntryKind;
@@ -23,6 +24,7 @@ interface ExplorerTreeNodeProps {
   onContextMenu: (event: MouseEvent, entry: DirectoryEntry) => void;
   onCreateCommit: (name: string) => void;
   onCreateCancel: () => void;
+  onMoveEntry: (sourceRelativePath: string, destinationDirectoryRelativePath: string) => void;
   onSelect: (entry: DirectoryEntry) => void;
   onToggle: (relativePath: string) => void;
 }
@@ -39,6 +41,7 @@ export function ExplorerTreeNode({
   onContextMenu,
   onCreateCommit,
   onCreateCancel,
+  onMoveEntry,
   onSelect,
   onToggle,
 }: ExplorerTreeNodeProps) {
@@ -50,11 +53,47 @@ export function ExplorerTreeNode({
   const isSelected = explorer.selectedPath === entry.relativePath;
   const gitTone = gitToneForPath(entry.relativePath, gitEntries);
   const isPending = pendingFilePaths.includes(entry.relativePath);
+  const [isDropTarget, setIsDropTarget] = useState(false);
+
+  function handleDragOver(event: DragEvent<HTMLDivElement>) {
+    if (!isDirectory) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "move";
+    setIsDropTarget(true);
+  }
+
+  function startDrag(event: DragEvent<HTMLElement>) {
+    if (entry.kind !== "file" && entry.kind !== "directory") return;
+    event.dataTransfer.effectAllowed = "copyMove";
+    event.dataTransfer.setData(INTERNAL_FILE_DROP_TYPE, entry.relativePath);
+    event.dataTransfer.setData("text/plain", entry.relativePath);
+  }
+
+  function handleDrop(event: DragEvent<HTMLDivElement>) {
+    if (!isDirectory) return;
+    event.preventDefault();
+    event.stopPropagation();
+    setIsDropTarget(false);
+    const sourceRelativePath = event.dataTransfer.getData(INTERNAL_FILE_DROP_TYPE).trim();
+    if (sourceRelativePath && sourceRelativePath !== entry.relativePath) {
+      onMoveEntry(sourceRelativePath, entry.relativePath);
+    }
+  }
 
   return (
     <li className="explorer-node">
       <div
-        className={`explorer-entry${isSelected ? " explorer-entry-selected" : ""}${gitTone === "clean" ? "" : ` explorer-entry-git-${gitTone}`}${isPending ? " explorer-entry-pending" : ""}`}
+        className={`explorer-entry${isSelected ? " explorer-entry-selected" : ""}${gitTone === "clean" ? "" : ` explorer-entry-git-${gitTone}`}${isPending ? " explorer-entry-pending" : ""}${isDropTarget ? " explorer-entry-drop-target" : ""}`}
+        draggable={entry.kind === "file" || entry.kind === "directory"}
+        onDragStart={startDrag}
+        onDragOver={handleDragOver}
+        onDragLeave={(event) => {
+          const relatedTarget = event.relatedTarget;
+          if (!(relatedTarget instanceof Node) || !event.currentTarget.contains(relatedTarget)) {
+            setIsDropTarget(false);
+          }
+        }}
+        onDrop={handleDrop}
         onClick={(event) => {
           if (event.target instanceof Element && event.target.closest(".explorer-toggle")) return;
           onSelect(entry);
@@ -81,6 +120,8 @@ export function ExplorerTreeNode({
         )}
         <button
           className="explorer-entry-label"
+          draggable={entry.kind === "file" || entry.kind === "directory"}
+          onDragStart={startDrag}
           title={entry.relativePath}
           type="button"
         >
@@ -131,6 +172,7 @@ export function ExplorerTreeNode({
                   onContextMenu={onContextMenu}
                   onCreateCommit={onCreateCommit}
                   onCreateCancel={onCreateCancel}
+                  onMoveEntry={onMoveEntry}
                   onSelect={onSelect}
                   onToggle={onToggle}
                 />

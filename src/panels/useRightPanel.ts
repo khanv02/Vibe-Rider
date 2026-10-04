@@ -57,7 +57,6 @@ export function useRightPanel(bodyWidth: number): RightPanelController {
 
   const setEditorSize = useCallback((size: EditorPanelSize) => {
     setState((current) => {
-      if (current.activeRightPanel !== "editor" && current.activeRightPanel !== "git") return current;
       if (size === "normal") {
         return { ...current, editorSize: "normal" };
       }

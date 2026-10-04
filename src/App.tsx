@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { AppLayout } from "./components/AppLayout";
+import { AppLayout, type WorkspaceMode } from "./components/AppLayout";
 import { RightPanel } from "./components/RightPanel";
 import { TerminalWorkspace } from "./components/TerminalWorkspace";
+import { EditorWorkspace } from "./components/EditorWorkspace";
+import { quotePowerShellPath } from "./components/fileDrop";
 import { useRightPanel } from "./panels/useRightPanel";
 import { TERMINAL_PANE_IDS, type TerminalPaneId, type TerminalPaneState } from "./terminal/types";
 import { formatWorkspaceError, openWorkspace } from "./workspace/workspaceApi";
@@ -21,8 +23,6 @@ import { useWorkspaceGit } from "./git/useWorkspaceGit";
 import { hasTauriWindowMetadata, isTauriRuntime } from "./tauri/runtime";
 import { useWorkspaceSearch } from "./search/useWorkspaceSearch";
 import type { SearchMatch } from "./search/types";
-import { useWorkspaceActivity } from "./activity/useWorkspaceActivity";
-import { useWorkspaceCommands } from "./commands/useWorkspaceCommands";
 
 function App() {
   const [workspace, setWorkspace] = useState<WorkspaceDescriptor | null>(null);
@@ -33,6 +33,7 @@ function App() {
   const [layoutMode, setLayoutMode] = useState<TerminalLayoutMode>(4);
   const [visiblePair, setVisiblePair] = useState<[TerminalPaneId, TerminalPaneId]>(["T1", "T2"]);
   const [autoStartPaneId, setAutoStartPaneId] = useState<TerminalPaneId | null>(null);
+  const [workspaceMode, setWorkspaceMode] = useState<WorkspaceMode>("terminal");
   const [preferencesReady, setPreferencesReady] = useState(false);
   const [preferencesError, setPreferencesError] = useState<string | null>(null);
   const [theme, setTheme] = useState<UiTheme>(DEFAULT_UI_PREFERENCES.theme);
@@ -56,8 +57,6 @@ function App() {
   const rightPanel = useRightPanel(bodyWidth);
   const editor = useWorkspaceEditor(workspace);
   const search = useWorkspaceSearch(workspace);
-  const activity = useWorkspaceActivity(workspace);
-  const commands = useWorkspaceCommands(workspace, activity);
   const git = useWorkspaceGit(workspace, editor.prepareWorkspaceChange, editor.captureFileOperation, editor.completeFileOperation);
   closeModeRef.current = closeMode;
 
@@ -74,23 +73,6 @@ function App() {
     document.documentElement.dataset.theme = theme;
     document.documentElement.style.colorScheme = theme;
   }, [theme]);
-
-  const terminalActivityRef = useRef<Record<TerminalPaneId, string>>({});
-  useEffect(() => {
-    terminalActivityRef.current = {};
-  }, [activity.currentSession?.sessionId]);
-
-  useEffect(() => {
-    for (const paneId of TERMINAL_PANE_IDS) {
-      const state = terminalStates[paneId];
-      const signature = `${state.state}:${state.exitCode ?? ""}`;
-      const previous = terminalActivityRef.current[paneId];
-      terminalActivityRef.current[paneId] = signature;
-      if (previous !== undefined && previous !== signature) {
-        void activity.record("terminal", `${paneId}: ${state.state}`, state.exitCode === null ? undefined : `exit code: ${state.exitCode}`);
-      }
-    }
-  }, [activity.record, terminalStates]);
 
   const deleteExplorerEntry = useCallback(async (relativePath: string) => {
     editor.captureFileOperation([relativePath], "delete");
@@ -114,7 +96,7 @@ function App() {
         hydrate({
           ...RIGHT_PANEL_DEFAULT_STATE,
           rightPanelOpen: next.panel.open,
-          activeRightPanel: next.panel.activeTool,
+          activeRightPanel: next.panel.activeTool === "git" ? "git" : "explorer",
           rightPanelWidth: next.panel.normalWidth,
           editorSize: next.panel.editorSize,
           editorExpandedWidth: next.panel.expandedWidth,
@@ -130,7 +112,7 @@ function App() {
               setAutoStartPaneId(next.terminal.activePaneId);
             }
           } catch (error) {
-            setWorkspaceError(formatWorkspaceError(error));
+        setWorkspaceError(formatWorkspaceError(error));
             selectPanel("explorer");
           }
         }
@@ -333,18 +315,52 @@ function App() {
 
   function openFile(entry: DirectoryEntry) {
     if (entry.kind !== "file") return;
-    rightPanel.selectPanel("editor");
+    setWorkspaceMode("editor");
+    rightPanel.selectPanel("explorer");
     void editor.openFile(entry.relativePath);
   }
 
   const openSearchResult = useCallback(async (match: SearchMatch) => {
     const opened = await editor.openFileAtLocation(match.relativePath, match.line, match.column, match.endColumn);
-    if (opened) rightPanel.selectPanel("editor");
+    if (opened) {
+      setWorkspaceMode("editor");
+      rightPanel.selectPanel("explorer");
+    }
   }, [editor.openFileAtLocation, rightPanel.selectPanel]);
 
-  const focusActiveTerminal = useCallback(() => terminalWorkspaceRef.current?.focusActivePane(), []);
+  const openDroppedFile = useCallback(async (path: string): Promise<string | null> => {
+    const relativePath = relativeWorkspacePath(path, workspace?.rootPath ?? null);
+    if (!relativePath) {
+      setWorkspaceError("Only files inside the current workspace can be opened in Editor.");
+      return null;
+    }
+    const opened = await editor.openFile(relativePath);
+    if (!opened) return null;
+    setWorkspaceMode("editor");
+    rightPanel.selectPanel("explorer");
+    return relativePath;
+  }, [editor.openFile, rightPanel.selectPanel, workspace?.rootPath]);
+
+  const handleTerminalPathDrop = useCallback((paths: string[], paneId: TerminalPaneId) => {
+    const terminalPaths = paths
+      .map((path) => absoluteWorkspacePath(path, workspace?.rootPath ?? null))
+      .filter((path): path is string => Boolean(path));
+    if (terminalPaths.length === 0) return;
+    setWorkspaceMode("terminal");
+    setActivePaneId(paneId);
+    requestAnimationFrame(() => {
+      terminalWorkspaceRef.current?.writeToPane(paneId, `${terminalPaths.map(quotePowerShellPath).join(" ")} `);
+      terminalWorkspaceRef.current?.focusPane(paneId);
+    });
+  }, [workspace?.rootPath]);
+
+  const focusActiveTerminal = useCallback(() => {
+    setWorkspaceMode("terminal");
+    requestAnimationFrame(() => terminalWorkspaceRef.current?.focusActivePane());
+  }, []);
   const setLayout = useCallback((mode: TerminalLayoutMode) => setLayoutMode(mode), []);
   const focusPane = useCallback((paneId: TerminalPaneId) => {
+    setWorkspaceMode("terminal");
     setActivePaneId(paneId);
     setVisiblePair((current) => layoutMode === 2 && !current.includes(paneId) ? [paneId, nextPane[paneId]] : current);
     requestAnimationFrame(() => terminalWorkspaceRef.current?.focusPane(paneId));
@@ -357,7 +373,12 @@ function App() {
       rightPanel.togglePanel();
     }
   }, [focusActiveTerminal, rightPanel]);
-  const focusTool = useCallback((panel: "git" | "explorer" | "editor" | "activity") => {
+  const focusTool = useCallback((panel: "git" | "explorer" | "editor") => {
+    if (panel === "editor") {
+      setWorkspaceMode("editor");
+      rightPanel.selectPanel("explorer");
+      return;
+    }
     rightPanel.selectPanel(panel);
     requestAnimationFrame(() => document.getElementById(`${panel}-panel-title`)?.focus());
   }, [rightPanel]);
@@ -375,6 +396,11 @@ function App() {
       <AppLayout
       theme={theme}
       onThemeChange={setTheme}
+      workspaceMode={workspaceMode}
+      onWorkspaceModeChange={(mode) => {
+        setWorkspaceMode(mode);
+        if (mode === "terminal") requestAnimationFrame(focusActiveTerminal);
+      }}
       isOpeningWorkspace={isOpeningWorkspace}
       onOpenWorkspace={chooseWorkspace}
       onBodyWidthChange={handleBodyWidthChange}
@@ -405,6 +431,7 @@ function App() {
           onLayoutModeChange={setLayoutMode}
           onPaneStateChange={(nextState) => setTerminalStates((current) => ({ ...current, [nextState.paneId]: nextState }))}
           onVisiblePairChange={setVisiblePair}
+          onPathDrop={handleTerminalPathDrop}
           ref={terminalWorkspaceRef}
           theme={theme}
           visiblePair={visiblePair}
@@ -414,9 +441,6 @@ function App() {
       rightPanel={
           <RightPanel
             activePanel={rightPanel.state.activeRightPanel}
-            activity={activity}
-            commands={commands}
-            editor={editor}
             git={git}
             gitEntries={git.status?.entries ?? []}
           editorSize={rightPanel.state.editorSize}
@@ -434,6 +458,15 @@ function App() {
             theme={theme}
             workspace={workspace}
           workspaceError={workspaceError}
+        />
+      }
+      editorWorkspace={
+        <EditorWorkspace
+          controller={editor}
+          editorSize={rightPanel.state.editorSize}
+          onEditorSizeChange={rightPanel.setEditorSize}
+          onOpenFile={openDroppedFile}
+          theme={theme}
         />
       }
       />
@@ -456,6 +489,27 @@ function App() {
       ) : null}
     </>
   );
+}
+
+function relativeWorkspacePath(path: string, rootPath: string | null): string | null {
+  if (!path) return null;
+  const normalizedPath = path.replaceAll("\\", "/").replace(/^file:\/\//, "");
+  const looksAbsolute = /^[A-Za-z]:\//.test(normalizedPath) || normalizedPath.startsWith("/");
+  if (!looksAbsolute) return normalizedPath.replace(/^\.\//, "");
+  if (!rootPath) return null;
+  const normalizedRoot = rootPath.replaceAll("\\", "/").replace(/\/$/, "");
+  const pathLower = normalizedPath.toLowerCase();
+  const rootLower = normalizedRoot.toLowerCase();
+  if (!pathLower.startsWith(`${rootLower}/`)) return null;
+  return normalizedPath.slice(normalizedRoot.length + 1);
+}
+
+function absoluteWorkspacePath(path: string, rootPath: string | null): string | null {
+  if (!path) return null;
+  const normalizedPath = path.replaceAll("\\", "/");
+  if (/^[A-Za-z]:\//.test(normalizedPath) || normalizedPath.startsWith("/")) return path;
+  if (!rootPath) return null;
+  return `${rootPath.replace(/[\\/]$/, "")}\\${normalizedPath.replaceAll("/", "\\")}`;
 }
 
 function StartupScreen() {

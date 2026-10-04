@@ -10,7 +10,7 @@ function browserSnapshot(): PreferencesSnapshot {
     if (!raw) return { preferences: DEFAULT_UI_PREFERENCES, rememberedWorkspace: null, warning: null };
     const parsed = JSON.parse(raw) as Partial<PreferencesSnapshot>;
     const panel = parsed.preferences?.panel;
-    const activeTool = panel?.activeTool === "git" || panel?.activeTool === "explorer" || panel?.activeTool === "editor" || panel?.activeTool === "activity"
+    const activeTool = panel?.activeTool === "git" || panel?.activeTool === "explorer" || panel?.activeTool === "editor"
       ? panel.activeTool
       : DEFAULT_UI_PREFERENCES.panel.activeTool;
     const closeMode = parsed.preferences?.closeMode === "always" || parsed.preferences?.closeMode === "when-needed" || parsed.preferences?.closeMode === "never"

@@ -1,7 +1,6 @@
 #[cfg(debug_assertions)]
 use std::path::PathBuf;
 
-mod activity;
 mod commands;
 mod external;
 mod file_editor;
@@ -15,15 +14,10 @@ mod terminal;
 mod tools;
 mod workspace;
 
-use activity::{
-    activity_session_append, activity_session_delete, activity_session_end, activity_session_list,
-    activity_session_read, activity_session_restore, activity_session_start, activity_session_trash_list,
-    ActivityService,
-};
 use commands::{command_cancel, command_propose, command_run, CommandService};
 use external::open_external_url;
 use file_editor::{read_file, restore_file, write_file};
-use filesystem::{create_entry, delete_entry, read_directory, save_clipboard_image};
+use filesystem::{create_entry, delete_entry, move_entry, read_directory, save_clipboard_image};
 use git::{
     git_add, git_cancel, git_commit, git_create_branch, git_diff, git_operations, git_push,
     git_repository, git_restore, git_status, git_switch_branch, GitService,
@@ -65,7 +59,6 @@ pub fn run() {
 
     let app = tauri::Builder::default()
         .manage(WorkspaceState::default())
-        .manage(ActivityService::default())
         .manage(CommandService::default())
         .manage(PatchService::default())
         .manage(PreferencesState::default())
@@ -75,14 +68,6 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
             ping,
-            activity_session_start,
-            activity_session_list,
-            activity_session_trash_list,
-            activity_session_read,
-            activity_session_append,
-            activity_session_end,
-            activity_session_delete,
-            activity_session_restore,
             open_external_url,
             open_workspace,
             load_ui_preferences,
@@ -103,6 +88,7 @@ pub fn run() {
             read_directory,
             create_entry,
             delete_entry,
+            move_entry,
             save_clipboard_image,
             read_file,
             write_file,
@@ -131,9 +117,6 @@ pub fn run() {
 
     app.run(|app_handle, event| {
         if matches!(event, tauri::RunEvent::Exit) {
-            app_handle
-                .state::<ActivityService>()
-                .close_all_for_shutdown(app_handle);
             app_handle.state::<GitService>().close_all_for_shutdown();
             app_handle.state::<SearchService>().close_all_for_shutdown();
             app_handle.state::<PatchService>().close_all_for_shutdown();

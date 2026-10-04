@@ -69,6 +69,14 @@ pub struct DeleteEntryRequest {
     relative_path: String,
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MoveEntryRequest {
+    workspace_id: String,
+    source_relative_path: String,
+    destination_directory_relative_path: String,
+}
+
 #[derive(Clone, Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct EntryMutationResult {
@@ -190,6 +198,37 @@ pub async fn delete_entry(
 }
 
 #[tauri::command]
+pub async fn move_entry(
+    state: State<'_, WorkspaceState>,
+    request: MoveEntryRequest,
+) -> Result<EntryMutationResult, WorkspaceError> {
+    let lease = state.begin_mutation(&request.workspace_id)?;
+    let workspace_id = request.workspace_id.clone();
+    let source_relative_path = request.source_relative_path.clone();
+    let destination_directory_relative_path = request.destination_directory_relative_path.clone();
+    let root = lease.snapshot.root.clone();
+    let result = tauri::async_runtime::spawn_blocking(move || {
+        let _lease = lease;
+        move_entry_on_disk(
+            &workspace_id,
+            &root,
+            &source_relative_path,
+            &destination_directory_relative_path,
+        )
+    })
+    .await
+    .map_err(|error| {
+        WorkspaceError::new(
+            "IO_ERROR",
+            format!("Move entry worker stopped unexpectedly: {error}"),
+        )
+    })??;
+
+    ensure_active(&state, &result.workspace_id)?;
+    Ok(result)
+}
+
+#[tauri::command]
 pub async fn save_clipboard_image(
     state: State<'_, WorkspaceState>,
     request: SaveClipboardImageRequest,
@@ -289,6 +328,57 @@ fn delete_entry_on_disk(
     Ok(EntryMutationResult {
         workspace_id: workspace_id.to_owned(),
         relative_path: normalized_path,
+        kind,
+    })
+}
+
+fn move_entry_on_disk(
+    workspace_id: &str,
+    root: &Path,
+    source_relative_path: &str,
+    destination_directory_relative_path: &str,
+) -> Result<EntryMutationResult, WorkspaceError> {
+    let (source, normalized_source, kind) = resolve_existing_entry(root, source_relative_path)?;
+    let normalized_destination = normalize_relative_path(destination_directory_relative_path)?;
+    let source_name = Path::new(&normalized_source)
+        .file_name()
+        .and_then(|name| name.to_str())
+        .ok_or_else(|| WorkspaceError::new("INVALID_PATH", "Source entry name is invalid."))?;
+
+    let destination_is_inside_source = normalized_destination == normalized_source
+        || normalized_destination.starts_with(&format!("{normalized_source}/"));
+    if kind == DirectoryEntryKind::Directory && destination_is_inside_source {
+        return Err(WorkspaceError::new(
+            "INVALID_MOVE",
+            "A directory cannot be moved into itself or one of its children.",
+        ));
+    }
+
+    let destination_directory = resolve_directory(root, destination_directory_relative_path)?;
+
+    let target = destination_directory.join(source_name);
+    if target == source {
+        return Err(WorkspaceError::new(
+            "INVALID_MOVE",
+            "The entry is already in this directory.",
+        ));
+    }
+    if fs::symlink_metadata(&target).is_ok() {
+        return Err(WorkspaceError::new(
+            "ALREADY_EXISTS",
+            "An entry with this name already exists in the destination directory.",
+        ));
+    }
+
+    fs::rename(&source, &target).map_err(|error| map_io_error("move entry", error))?;
+    let relative_path = if normalized_destination.is_empty() {
+        source_name.to_owned()
+    } else {
+        format!("{normalized_destination}/{source_name}")
+    };
+    Ok(EntryMutationResult {
+        workspace_id: workspace_id.to_owned(),
+        relative_path,
         kind,
     })
 }
@@ -619,8 +709,8 @@ mod tests {
     use std::sync::atomic::{AtomicU64, Ordering};
 
     use super::{
-        create_entry_on_disk, delete_entry_on_disk, list_directory, save_clipboard_image_on_disk,
-        CreateEntryKind, DirectoryEntryKind,
+        create_entry_on_disk, delete_entry_on_disk, list_directory, move_entry_on_disk,
+        save_clipboard_image_on_disk, CreateEntryKind, DirectoryEntryKind,
     };
 
     static NEXT_FIXTURE: AtomicU64 = AtomicU64::new(0);
@@ -730,6 +820,44 @@ mod tests {
             .expect("directory should be deleted");
         assert_eq!(result.kind, DirectoryEntryKind::Directory);
         assert!(!fixture.path().join("src").exists());
+    }
+
+    #[test]
+    fn moves_files_and_directories_without_overwriting() {
+        let fixture = TempDirectory::new();
+        fs::create_dir(fixture.path().join("source")).expect("source should exist");
+        fs::create_dir(fixture.path().join("destination")).expect("destination should exist");
+        fs::write(fixture.path().join("source").join("file.txt"), b"file")
+            .expect("file should exist");
+
+        let file = move_entry_on_disk(
+            "workspace-1",
+            fixture.path(),
+            "source/file.txt",
+            "destination",
+        )
+        .expect("file should move");
+        assert_eq!(file.relative_path, "destination/file.txt");
+        assert_eq!(
+            fs::read(fixture.path().join("destination/file.txt")).unwrap(),
+            b"file"
+        );
+
+        let directory = move_entry_on_disk("workspace-1", fixture.path(), "source", "destination")
+            .expect("directory should move");
+        assert_eq!(directory.relative_path, "destination/source");
+        assert!(fixture.path().join("destination/source").is_dir());
+    }
+
+    #[test]
+    fn rejects_moving_directory_into_itself() {
+        let fixture = TempDirectory::new();
+        fs::create_dir_all(fixture.path().join("source/nested"))
+            .expect("nested directory should exist");
+
+        let error = move_entry_on_disk("workspace-1", fixture.path(), "source", "source/nested")
+            .expect_err("directory cannot move into itself");
+        assert_eq!(error.code, "INVALID_MOVE");
     }
 
     #[test]

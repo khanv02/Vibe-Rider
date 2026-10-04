@@ -11,6 +11,9 @@ interface AppLayoutProps {
   theme: UiTheme;
   onThemeChange: (theme: UiTheme) => void;
   terminalWorkspace: ReactNode;
+  editorWorkspace: ReactNode;
+  workspaceMode: WorkspaceMode;
+  onWorkspaceModeChange: (mode: WorkspaceMode) => void;
   rightPanel: ReactNode;
   isOpeningWorkspace: boolean;
   onOpenWorkspace: () => void;
@@ -35,10 +38,15 @@ interface AppLayoutProps {
   onCloseModeChange: (mode: CloseConfirmMode) => void;
 }
 
+export type WorkspaceMode = "terminal" | "editor";
+
 export function AppLayout({
   theme,
   onThemeChange,
   terminalWorkspace,
+  editorWorkspace,
+  workspaceMode,
+  onWorkspaceModeChange,
   rightPanel,
   isOpeningWorkspace,
   onOpenWorkspace,
@@ -149,7 +157,18 @@ export function AppLayout({
           "--right-panel-splitter-width": `${panelOpen ? splitterWidth : 0}px`,
         } as CSSProperties}
       >
-        <div className="terminal-workspace-slot">{terminalWorkspace}</div>
+        <div className="terminal-workspace-slot">
+          <div className="workspace-main">
+            <div className="workspace-mode-switch" role="tablist" aria-label="Main workspace mode">
+              <button aria-selected={workspaceMode === "terminal"} className={workspaceMode === "terminal" ? "workspace-mode-button workspace-mode-button-active" : "workspace-mode-button"} onClick={() => onWorkspaceModeChange("terminal")} role="tab" type="button">Terminal</button>
+              <button aria-selected={workspaceMode === "editor"} className={workspaceMode === "editor" ? "workspace-mode-button workspace-mode-button-active" : "workspace-mode-button"} onClick={() => onWorkspaceModeChange("editor")} role="tab" type="button">Editor</button>
+            </div>
+            <div className="workspace-main-content">
+              <div className={`workspace-view${workspaceMode === "terminal" ? " workspace-view-active" : ""}`} hidden={workspaceMode !== "terminal"}>{terminalWorkspace}</div>
+              <div className={`workspace-view${workspaceMode === "editor" ? " workspace-view-active" : ""}`} hidden={workspaceMode !== "editor"}>{editorWorkspace}</div>
+            </div>
+          </div>
+        </div>
         <RightPanelResizeHandle
           disabled={!panelOpen}
           maxWidth={panelMaxWidth}

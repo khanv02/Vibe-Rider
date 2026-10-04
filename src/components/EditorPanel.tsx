@@ -11,12 +11,17 @@ interface EditorPanelProps {
   controller: WorkspaceEditorController;
   editorSize: EditorPanelSize;
   onEditorSizeChange: (size: EditorPanelSize) => void;
+  filePath?: string | null;
+  onFileActivate?: (filePath: string) => void;
 }
 
-export function EditorPanel({ theme, controller, editorSize, onEditorSizeChange }: EditorPanelProps) {
+export function EditorPanel({ theme, controller, editorSize, onEditorSizeChange, filePath, onFileActivate }: EditorPanelProps) {
   const [pendingClose, setPendingClose] = useState<string | null>(null);
   const pendingTab = controller.tabs.find((tab) => tab.fileId === pendingClose);
-  const activeTab = controller.tabs.find((tab) => tab.fileId === controller.activeFileId);
+  const activeTab = filePath
+    ? controller.tabs.find((tab) => tab.relativePath === filePath)
+    : controller.tabs.find((tab) => tab.fileId === controller.activeFileId);
+  const activeEntry = activeTab ? controller.getEntry(activeTab.fileId) : null;
   const proposalIsActive = Boolean(controller.proposal && controller.proposal.fileId === activeTab?.fileId);
   const proposalIsVisible = Boolean(controller.proposal && activeTab?.fileId === controller.proposal.fileId && controller.diff?.proposalId === controller.proposal.proposalId);
 
@@ -66,16 +71,16 @@ export function EditorPanel({ theme, controller, editorSize, onEditorSizeChange 
               →
             </button>
           </div>
-          <button className="editor-quiet-button" disabled={!activeTab || activeTab.readOnly || activeTab.status === "saving" || proposalIsActive} onClick={() => void controller.saveFile()} type="button">Save</button>
-          <button className="editor-quiet-button" disabled={!activeTab || activeTab.readOnly || (!activeTab.dirty && !proposalIsActive)} onClick={() => controller.showDiff()} type="button">{proposalIsActive ? "Review proposal" : "Propose patch"}</button>
+          <button className="editor-quiet-button" disabled={!activeTab || activeTab.readOnly || activeTab.status === "saving" || proposalIsActive} onClick={() => void controller.saveFile(activeTab?.fileId)} type="button">Save</button>
+          <button className="editor-quiet-button" disabled={!activeTab || activeTab.readOnly || (!activeTab.dirty && !proposalIsActive)} onClick={() => void controller.showDiff(activeTab?.fileId)} type="button">{proposalIsActive ? "Review proposal" : "Propose patch"}</button>
           <button className={editorSize === "normal" ? "size-button size-button-active" : "size-button"} onClick={() => onEditorSizeChange("normal")} type="button">Normal</button>
           <button className={editorSize === "expanded" ? "size-button size-button-active" : "size-button"} onClick={() => onEditorSizeChange("expanded")} type="button">Expanded</button>
         </div>
       </div>
       <div className="editor-tabs" role="tablist" aria-label="Open files">
         {controller.tabs.map((tab) => (
-          <div className={`editor-tab${tab.fileId === controller.activeFileId ? " editor-tab-active" : ""}${controller.pendingFilePaths.includes(tab.relativePath) ? " editor-tab-pending" : ""}`} key={tab.fileId} role="presentation">
-            <button aria-selected={tab.fileId === controller.activeFileId} className="editor-tab-label" onClick={() => controller.setActive(tab.fileId)} role="tab" type="button">
+          <div className={`editor-tab${tab.fileId === activeTab?.fileId ? " editor-tab-active" : ""}${controller.pendingFilePaths.includes(tab.relativePath) ? " editor-tab-pending" : ""}`} key={tab.fileId} role="presentation">
+            <button aria-selected={tab.fileId === activeTab?.fileId} className="editor-tab-label" onClick={() => { controller.setActive(tab.fileId); onFileActivate?.(tab.relativePath); }} role="tab" type="button">
               <span className="editor-tab-state" aria-hidden="true">{tab.dirty ? "●" : tab.status === "loading" ? "…" : ""}</span>
               <span className="editor-tab-name" title={tab.relativePath}>{tab.relativePath.split("/").pop()}</span>
             </button>
@@ -85,8 +90,8 @@ export function EditorPanel({ theme, controller, editorSize, onEditorSizeChange 
         {controller.tabs.length === 0 ? <span className="editor-tabs-empty">Open a file from Explorer</span> : null}
       </div>
       <div className="editor-stage">
-        {controller.activeEntry && activeTab ? (
-          <MonacoEditor theme={theme} fileId={controller.activeEntry.snapshot.fileId} model={controller.activeEntry.model} navigation={controller.navigation} onChange={(content) => controller.updateDraft(controller.activeEntry?.snapshot.fileId ?? "", content)} onSave={() => void controller.saveFile(controller.activeFileId ?? undefined)} readOnly={activeTab.readOnly} />
+        {activeEntry && activeTab ? (
+          <MonacoEditor theme={theme} fileId={activeEntry.snapshot.fileId} model={activeEntry.model} navigation={controller.navigation} onChange={(content) => controller.updateDraft(activeEntry.snapshot.fileId, content)} onSave={() => void controller.saveFile(activeTab.fileId)} readOnly={activeTab.readOnly} />
         ) : (
           <div className="editor-empty-state"><span className="tool-placeholder-icon" aria-hidden="true">&lt;&gt;</span><h3>Open a file to edit</h3><p>Chọn file thường trong Explorer. Terminal và panel state vẫn được giữ khi Editor ẩn.</p></div>
         )}

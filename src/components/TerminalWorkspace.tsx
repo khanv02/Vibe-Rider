@@ -1,8 +1,13 @@
-import { forwardRef, useImperativeHandle } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
+import type { DragEvent } from "react";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { TERMINAL_PANE_IDS, type TerminalLayoutMode, type TerminalPaneId, type TerminalPaneState } from "../terminal/types";
 import type { WorkspaceDescriptor } from "../workspace/types";
 import type { UiTheme } from "../preferences/types";
 import { TerminalPane } from "./TerminalPane";
+import type { TerminalPaneHandle } from "./TerminalPane";
+import { dropPointInCssPixels, readDroppedPaths } from "./fileDrop";
+import { isTauriRuntime } from "../tauri/runtime";
 
 interface TerminalWorkspaceProps {
   theme: UiTheme;
@@ -15,11 +20,13 @@ interface TerminalWorkspaceProps {
   onVisiblePairChange: (pair: [TerminalPaneId, TerminalPaneId]) => void;
   visiblePair: [TerminalPaneId, TerminalPaneId];
   workspace: WorkspaceDescriptor | null;
+  onPathDrop: (paths: string[], paneId: TerminalPaneId) => void;
 }
 
 export interface TerminalWorkspaceHandle {
   focusActivePane: () => void;
   focusPane: (paneId: TerminalPaneId) => void;
+  writeToPane: (paneId: TerminalPaneId, text: string) => void;
 }
 
 const nextPane: Record<TerminalPaneId, TerminalPaneId> = {
@@ -40,11 +47,35 @@ export const TerminalWorkspace = forwardRef<TerminalWorkspaceHandle, TerminalWor
   onVisiblePairChange,
   visiblePair,
   workspace,
+  onPathDrop,
 }, ref) {
+  const paneRefs = useRef<Record<TerminalPaneId, TerminalPaneHandle | null>>({ T1: null, T2: null, T3: null, T4: null });
   useImperativeHandle(ref, () => ({
     focusActivePane: () => focusPane(activePaneId),
     focusPane,
+    writeToPane: (paneId, text) => paneRefs.current[paneId]?.writeText(text),
   }), [activePaneId]);
+
+  useEffect(() => {
+    if (!isTauriRuntime()) return;
+    let disposed = false;
+    let unlisten: (() => void) | undefined;
+    void getCurrentWindow().onDragDropEvent((event) => {
+      if (event.payload.type !== "drop") return;
+      const point = dropPointInCssPixels(event.payload.position);
+      const target = document.elementFromPoint(point.x, point.y);
+      const pane = target instanceof Element ? target.closest<HTMLElement>("[data-terminal-pane]") : null;
+      const paneId = pane?.dataset.terminalPane as TerminalPaneId | undefined;
+      if (paneId && TERMINAL_PANE_IDS.includes(paneId)) onPathDrop(event.payload.paths, paneId);
+    }).then((dispose) => {
+      if (disposed) dispose();
+      else unlisten = dispose;
+    });
+    return () => {
+      disposed = true;
+      unlisten?.();
+    };
+  }, [onPathDrop]);
   const visiblePaneIds = layoutMode === 4
     ? TERMINAL_PANE_IDS
     : layoutMode === 1
@@ -64,8 +95,16 @@ export const TerminalWorkspace = forwardRef<TerminalWorkspaceHandle, TerminalWor
     if (helper) onActivePaneChange(paneId);
   }
 
+  function handleDrop(event: DragEvent<HTMLElement>) {
+    event.preventDefault();
+    const target = event.target instanceof Element ? event.target.closest<HTMLElement>("[data-terminal-pane]") : null;
+    const paneId = target?.dataset.terminalPane as TerminalPaneId | undefined;
+    const paths = readDroppedPaths(event.dataTransfer);
+    if (paneId && TERMINAL_PANE_IDS.includes(paneId) && paths.length > 0) onPathDrop(paths, paneId);
+  }
+
   return (
-    <section className="terminal-workspace" aria-labelledby="terminal-workspace-title">
+    <section className="terminal-workspace" aria-labelledby="terminal-workspace-title" onDragOver={(event) => event.preventDefault()} onDrop={handleDrop}>
       <div className="workspace-heading">
         <div>
           <p className="workspace-kicker">MAIN WORKSPACE</p>
@@ -107,6 +146,7 @@ export const TerminalWorkspace = forwardRef<TerminalWorkspaceHandle, TerminalWor
             onFocus={() => selectPane(paneId)}
             onStateChange={onPaneStateChange}
             paneId={paneId}
+            ref={(instance) => { paneRefs.current[paneId] = instance; }}
             theme={theme}
             visible={visiblePaneIds.includes(paneId)}
             workspace={workspace}

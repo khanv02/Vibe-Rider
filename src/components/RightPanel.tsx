@@ -2,29 +2,21 @@ import type { WorkspaceDescriptor } from "../workspace/types";
 import type { WorkspaceExplorerController } from "../workspace/useWorkspaceExplorer";
 import type { EditorPanelSize, RightPanelId } from "../panels/types";
 import { ExplorerPanel } from "./ExplorerPanel";
-import { EditorPanel } from "./EditorPanel";
 import { GitPanel } from "./GitPanel";
-import type { WorkspaceEditorController } from "../editor/useWorkspaceEditor";
 import type { DirectoryEntry } from "../workspace/types";
 import type { WorkspaceGitController } from "../git/useWorkspaceGit";
 import { GitAccountBadge } from "./GitAccountBadge";
-import { ActivityPanel } from "./ActivityPanel";
-import type { WorkspaceActivityController } from "../activity/useWorkspaceActivity";
 import type { WorkspaceSearchController } from "../search/useWorkspaceSearch";
 import type { SearchMatch } from "../search/types";
 import type { GitStatusEntry } from "../git/types";
-import type { WorkspaceCommandsController } from "../commands/useWorkspaceCommands";
 import type { UiTheme } from "../preferences/types";
 
 interface RightPanelProps {
   theme: UiTheme;
   activePanel: RightPanelId;
-  activity: WorkspaceActivityController;
-  commands: WorkspaceCommandsController;
   editorSize: EditorPanelSize;
   keepExpandedOnSwitch: boolean;
   explorer: WorkspaceExplorerController;
-  editor: WorkspaceEditorController;
   git: WorkspaceGitController;
   gitEntries: GitStatusEntry[];
   onEditorSizeChange: (size: EditorPanelSize) => void;
@@ -44,18 +36,13 @@ interface RightPanelProps {
 const tools: Array<{ icon: string; id: RightPanelId; label: string }> = [
   { icon: "⌘", id: "git", label: "Git" },
   { icon: "◱", id: "explorer", label: "Explorer" },
-  { icon: "<>", id: "editor", label: "Editor" },
-  { icon: "◷", id: "activity", label: "Activity" },
 ];
 
 export function RightPanel({
   theme,
   activePanel,
-  activity,
-  commands,
   editorSize,
   keepExpandedOnSwitch,
-  editor,
   git,
   gitEntries,
   explorer,
@@ -83,7 +70,7 @@ export function RightPanel({
       className={`right-panel${open ? "" : " right-panel-collapsed"}`}
       id="right-panel"
     >
-      <nav className="activity-rail" aria-label="Supporting tool navigation">
+      <nav className="tool-rail" aria-label="Supporting tool navigation">
         <div className="rail-monogram" aria-hidden="true">VR</div>
         <div className="rail-tools">
           {tools.map((tool) => (
@@ -144,19 +131,6 @@ export function RightPanel({
           </div>
         </section>
 
-        <section className="tool-panel tool-view" hidden={activePanel !== "editor"} aria-labelledby="editor-panel-title">
-          <ToolHeading badge={editorSize === "expanded" ? "EXPANDED" : "NORMAL"} id="editor-panel-title" keepExpandedOnSwitch={keepExpandedOnSwitch} onToggleKeepExpandedOnSwitch={onToggleKeepExpandedOnSwitch} title="Editor" />
-          <div className="tool-panel-content editor-panel-content">
-            <EditorPanel theme={theme} controller={editor} editorSize={editorSize} onEditorSizeChange={onEditorSizeChange} />
-          </div>
-        </section>
-
-        <section className="tool-panel tool-view" hidden={activePanel !== "activity"} aria-labelledby="activity-panel-title">
-          <ToolHeading badge="LOCAL" id="activity-panel-title" keepExpandedOnSwitch={keepExpandedOnSwitch} onToggleKeepExpandedOnSwitch={onToggleKeepExpandedOnSwitch} title="Activity" />
-          <div className="tool-panel-content">
-            <ActivityPanel commands={commands} controller={activity} workspace={workspace} />
-          </div>
-        </section>
       </div>
     </aside>
   );

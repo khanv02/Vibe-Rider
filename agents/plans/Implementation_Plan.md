@@ -317,6 +317,8 @@ Implementation evidence: [Phase 7 UX Preview](../../docs/phase-7-ux-preview.md).
 
 ### Phase 9 — Read-only Agent
 
+> **Đã đóng roadmap (2026-10-04).** Giữ lại Search, Search UI và read-only tools như thành phần IDE core đã có. Không triển khai tiếp agent loop, provider/CLI adapter, evidence UI hoặc Activity/session history. Nội dung bên dưới là lịch sử kế hoạch, không phải backlog hiện hành.
+
 Kế hoạch chi tiết: [Phase 9 — Read-only Agent](Phase_9_Read_Only_Agent_Plan.md). Tiến độ: **nền tảng 9.1–9.3 và local Activity Log đã triển khai; 9.4 agent loop/CLI adapter và native acceptance còn pending**. Preview actual results: [Phase 9 Read-only Agent](../../docs/phase-9-read-only-agent-preview.md). Hướng đã chốt là AI CLI + local Activity Log; registry read-only và activity contract được giữ độc lập để tích hợp CLI sau.
 
 **Mục tiêu:** agent tìm và đọc code trong workspace để trả lời có căn cứ.
@@ -333,6 +335,8 @@ Kế hoạch chi tiết: [Phase 9 — Read-only Agent](Phase_9_Read_Only_Agent_P
 **Nghiệm thu:** agent tìm đúng code; path ngoài workspace bị từ chối; no-match/error/cancel không tạo loop vô hạn; không có filesystem write.
 
 ### Phase 10 — Coding Agent
+
+> **Đã đóng roadmap (2026-10-04).** Không tiếp tục xây coding-agent, live CLI adapter, AI chat/provider hoặc workflow tự động. Giữ các primitive an toàn đã có như patch review, approval boundary, verification command và packaging; chỉ sửa bug/regression khi cần. Nội dung bên dưới là lịch sử kế hoạch.
 
 Kế hoạch chi tiết: [Phase 10 — Coding Agent](Phase_10_Coding_Agent_Plan.md). Bám hướng AI CLI/terminal đã chọn; Phase 8 AI Chat đã bỏ. Nền tảng proposal/command có thể phát triển song song Phase 9, live CLI integration cần protocol và contracts run/evidence/cancel tương ứng.
 

@@ -3,6 +3,7 @@ import {
   createEntry as createEntryOnDisk,
   deleteEntry as deleteEntryOnDisk,
   formatWorkspaceError,
+  moveEntry as moveEntryOnDisk,
   readDirectory,
 } from "./workspaceApi";
 import type { CreateEntryKind, DirectoryEntry, DirectoryListing, WorkspaceDescriptor } from "./types";
@@ -25,6 +26,7 @@ export interface WorkspaceExplorerController extends ExplorerState {
   retryDirectory: (relativePath: string) => void;
   createEntry: (parentRelativePath: string, name: string, kind: CreateEntryKind) => Promise<boolean>;
   deleteEntry: (relativePath: string) => Promise<boolean>;
+  moveEntry: (sourceRelativePath: string, destinationDirectoryRelativePath: string) => Promise<boolean>;
   clearMutationError: () => void;
   clearSelection: () => void;
   selectEntry: (entry: DirectoryEntry) => void;
@@ -287,6 +289,31 @@ export function useWorkspaceExplorer(
     [refreshDirectory, workspace],
   );
 
+  const moveEntry = useCallback(
+    async (sourceRelativePath: string, destinationDirectoryRelativePath: string): Promise<boolean> => {
+      if (!workspace || !sourceRelativePath || sourceRelativePath === destinationDirectoryRelativePath) return false;
+      const generation = generationRef.current;
+      setState((current) => ({ ...current, mutationBusy: true, mutationError: undefined }));
+      try {
+        const result = await moveEntryOnDisk(workspace.id, sourceRelativePath, destinationDirectoryRelativePath);
+        if (generation === generationRef.current) {
+          const sourceSeparator = sourceRelativePath.lastIndexOf("/");
+          const sourceParent = sourceSeparator === -1 ? ROOT_PATH : sourceRelativePath.slice(0, sourceSeparator);
+          refreshDirectory(sourceParent);
+          if (destinationDirectoryRelativePath !== sourceParent) refreshDirectory(destinationDirectoryRelativePath);
+          setState((current) => ({ ...current, selectedPath: result.relativePath }));
+        }
+        return true;
+      } catch (error) {
+        setState((current) => ({ ...current, mutationError: formatWorkspaceError(error) }));
+        return false;
+      } finally {
+        setState((current) => ({ ...current, mutationBusy: false }));
+      }
+    },
+    [refreshDirectory, workspace],
+  );
+
   const selectEntry = useCallback((entry: DirectoryEntry) => {
     setState((current) => ({ ...current, selectedPath: entry.relativePath }));
   }, []);
@@ -306,6 +333,7 @@ export function useWorkspaceExplorer(
     retryDirectory,
     createEntry,
     deleteEntry,
+    moveEntry,
     clearMutationError,
     clearSelection,
     selectEntry,

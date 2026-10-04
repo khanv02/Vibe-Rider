@@ -146,7 +146,7 @@ fn validate_ui(mut value: UiPreferences) -> Result<UiPreferences, WorkspaceError
         || value.terminal.visible_pair[0] == value.terminal.visible_pair[1]
         || !matches!(
             value.panel.active_tool.as_str(),
-            "git" | "explorer" | "editor" | "activity"
+            "git" | "explorer" | "editor"
         )
         || !matches!(value.panel.editor_size.as_str(), "normal" | "expanded")
         || !matches!(value.panel.side.as_str(), "left" | "right")

@@ -1,7 +1,7 @@
 import { FitAddon } from "@xterm/addon-fit";
 import { Terminal } from "@xterm/xterm";
 import "@xterm/xterm/css/xterm.css";
-import { useEffect, useRef, useState } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 import {
   acknowledgeTerminal,
   closeTerminal,
@@ -32,7 +32,12 @@ interface TerminalPaneProps {
   workspace: WorkspaceDescriptor | null;
 }
 
-export function TerminalPane({
+export interface TerminalPaneHandle {
+  focus: () => void;
+  writeText: (text: string) => void;
+}
+
+export const TerminalPane = forwardRef<TerminalPaneHandle, TerminalPaneProps>(function TerminalPane({
   theme,
   active,
   autoStart = false,
@@ -41,7 +46,7 @@ export function TerminalPane({
   paneId,
   visible,
   workspace,
-}: TerminalPaneProps) {
+}: TerminalPaneProps, ref) {
   const [session, setSession] = useState<TerminalSession | null>(null);
   const [rootPath, setRootPath] = useState<string | null>(null);
   const [viewState, setViewState] = useState<TerminalViewState>("idle");
@@ -55,11 +60,16 @@ export function TerminalPane({
   const callbackRef = useRef(onStateChange);
   const operationRef = useRef(0);
   const inputQueueRef = useRef(Promise.resolve());
+  const writeInputRef = useRef<(data: string) => void>(() => undefined);
   const resizeFrameRef = useRef<number | null>(null);
   const lastGeometryRef = useRef({ rows: 0, cols: 0 });
   const autoStartedWorkspaceRef = useRef<string | null>(null);
   workspaceRef.current = workspace;
   callbackRef.current = onStateChange;
+  useImperativeHandle(ref, () => ({
+    focus: () => terminalRef.current?.focus(),
+    writeText: (text) => writeInputRef.current(text),
+  }), []);
 
   function publishState(
     nextState: TerminalViewState,
@@ -124,6 +134,7 @@ export function TerminalPane({
           publishState("error", message, sessionRef.current);
         });
     }
+    writeInputRef.current = (data) => queueInput(data);
 
     const inputDisposable = terminal.onData((data) => queueInput(data));
     let imagePasteInFlight = false;
@@ -251,6 +262,7 @@ export function TerminalPane({
       terminal.textarea?.removeEventListener("paste", pasteHandler, true);
       terminal.dispose();
       terminalRef.current = null;
+      writeInputRef.current = () => undefined;
       fitRef.current = null;
     };
     // The pane owns one xterm instance for its entire lifetime.
@@ -320,7 +332,7 @@ export function TerminalPane({
   }, [autoStart, viewState, workspace?.id]);
 
   async function startTerminal(resetBuffer: boolean) {
-    if (!workspace || viewState === "starting" || viewState === "closing") return;
+    if (!workspace || sessionRef.current || viewState === "starting" || viewState === "running" || viewState === "closing") return;
     const terminal = terminalRef.current;
     if (!terminal) return;
     const operation = ++operationRef.current;
@@ -461,7 +473,7 @@ export function TerminalPane({
       </div>
     </article>
   );
-}
+});
 
 function terminalTheme(theme: UiTheme) {
   return theme === "light"

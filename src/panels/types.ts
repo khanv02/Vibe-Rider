@@ -1,4 +1,4 @@
-export type RightPanelId = "git" | "explorer" | "editor" | "activity";
+export type RightPanelId = "git" | "explorer" | "editor";
 
 export type EditorPanelSize = "normal" | "expanded";
 export type RightPanelSide = "left" | "right";

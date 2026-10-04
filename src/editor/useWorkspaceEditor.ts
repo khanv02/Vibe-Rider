@@ -15,6 +15,7 @@ export interface WorkspaceEditorController {
   tabs: ReturnType<typeof useEditorStore.getState>["tabs"];
   activeFileId: string | null;
   activeEntry: EditorModelEntry | null;
+  getEntry: (fileId: string) => EditorModelEntry | null;
   diff: DiffPreview | null;
   proposal: PatchProposal | null;
   proposalError: string | null;
@@ -633,12 +634,14 @@ export function useWorkspaceEditor(workspace: WorkspaceDescriptor | null): Works
 
   const closeDiff = useCallback(() => { diffRef.current = null; forceRender(); }, [forceRender]);
   const activeEntry = activeFileId ? registryRef.current.get(activeFileId) ?? null : null;
+  const getEntry = useCallback((fileId: string) => registryRef.current.get(fileId) ?? null, []);
   const canGoBack = historyVersion >= 0 && fileHistoryRef.current.index > 0;
   const canGoForward = historyVersion >= 0 && fileHistoryRef.current.index < fileHistoryRef.current.entries.length - 1;
   return {
     tabs,
     activeFileId,
     activeEntry,
+    getEntry,
     diff: diffRef.current,
     proposal,
     proposalError,

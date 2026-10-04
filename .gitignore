@@ -19,3 +19,13 @@ dist-form-audit/
 
 # Windows metadata
 Thumbs.db
+
+# Closed roadmap documentation and retired Activity implementation
+agents/plans/Phase_9_Read_Only_Agent_Plan.md
+agents/plans/Phase_10_Coding_Agent_Plan.md
+agents/plans/Activity_Scope_And_CLI_Resume_Plan.md
+docs/phase-9-read-only-agent-preview.md
+docs/phase-10-coding-agent-preview.md
+src-tauri/src/activity.rs
+src/activity/
+src/components/ActivityPanel.tsx
