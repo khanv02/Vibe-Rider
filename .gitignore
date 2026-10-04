@@ -3,6 +3,7 @@ dist/
 src-tauri/target/
 **/target-portable/
 src-tauri/.runtime-data/
+.vibe-rider-data/
 vibe-rider.exe
 vibe-rider-logo.png
 *.log

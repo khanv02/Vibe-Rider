@@ -56,3 +56,10 @@ export interface TerminalPaneState {
 }
 
 export const TERMINAL_PANE_IDS: TerminalPaneId[] = ["T1", "T2", "T3", "T4"];
+
+export const NEXT_TERMINAL_PANE: Record<TerminalPaneId, TerminalPaneId> = {
+  T1: "T2",
+  T2: "T3",
+  T3: "T4",
+  T4: "T1",
+};

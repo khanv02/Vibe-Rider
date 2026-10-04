@@ -236,14 +236,14 @@ export function useWorkspaceGit(
     [selected, status],
   );
 
-  const stageEntries = useCallback((entryIds: string[]) => {
-    if (!status || !workspace || entryIds.length === 0) return Promise.resolve();
-    return runMutation(() => stageGitEntries(workspace.id, entryIds, status.statusToken), "Stage");
+  const stageEntries = useCallback(async (entryIds: string[]) => {
+    if (!status || !workspace || entryIds.length === 0) return;
+    await runMutation(() => stageGitEntries(workspace.id, entryIds, status.statusToken), "Stage");
   }, [runMutation, status, workspace]);
 
-  const unstageEntries = useCallback((entryIds: string[]) => {
-    if (!status || !workspace || entryIds.length === 0) return Promise.resolve();
-    return runMutation(() => restoreGitEntries(workspace.id, entryIds.map((entryId) => ({ entryId })), status.statusToken, "unstage"), "Unstage");
+  const unstageEntries = useCallback(async (entryIds: string[]) => {
+    if (!status || !workspace || entryIds.length === 0) return;
+    await runMutation(() => restoreGitEntries(workspace.id, entryIds.map((entryId) => ({ entryId })), status.statusToken, "unstage"), "Unstage");
   }, [runMutation, status, workspace]);
 
   const review = useCallback(async (entry: GitStatusEntry, scope: "staged" | "unstaged") => {
@@ -255,12 +255,12 @@ export function useWorkspaceGit(
     }
   }, [status, workspace]);
 
-  const stage = useCallback(() => {
-    return stageEntries(selectedIds);
+  const stage = useCallback(async () => {
+    await stageEntries(selectedIds);
   }, [selectedIds, stageEntries]);
 
-  const unstage = useCallback(() => {
-    return unstageEntries(selectedIds);
+  const unstage = useCallback(async () => {
+    await unstageEntries(selectedIds);
   }, [selectedIds, unstageEntries]);
 
   const restore = useCallback(() => {
@@ -281,30 +281,30 @@ export function useWorkspaceGit(
     })();
   }, [captureFileOperation, completeFileOperation, prepareRestore, refresh, runMutation, selected, selectedEntries.length, status, workspace]);
 
-  const commit = useCallback(() => {
-    if (!status || !workspace || !commitMessage.trim()) return Promise.resolve();
-    return runMutation(() => commitGit(workspace.id, commitMessage, status.statusToken).then((result) => {
+  const commit = useCallback(async () => {
+    if (!status || !workspace || !commitMessage.trim()) return;
+    await runMutation(() => commitGit(workspace.id, commitMessage, status.statusToken).then((result) => {
       setCommitMessage("");
       return result;
     }), "Commit");
   }, [commitMessage, runMutation, status, workspace]);
 
-  const push = useCallback(() => {
-    if (!status || !workspace) return Promise.resolve();
-    return runMutation(() => pushGit(workspace.id, status.statusToken), "Push");
+  const push = useCallback(async () => {
+    if (!status || !workspace) return;
+    await runMutation(() => pushGit(workspace.id, status.statusToken), "Push");
   }, [runMutation, status, workspace]);
 
-  const createBranch = useCallback((branchName: string) => {
-    if (!status || !workspace) return Promise.resolve();
-    return runMutation(
+  const createBranch = useCallback(async (branchName: string) => {
+    if (!status || !workspace) return;
+    await runMutation(
       () => createGitBranch(workspace.id, branchName.trim(), status.statusToken),
       "Create branch",
     );
   }, [runMutation, status, workspace]);
 
-  const switchBranch = useCallback((branchName: string) => {
-    if (!status || !workspace) return Promise.resolve();
-    return runMutation(
+  const switchBranch = useCallback(async (branchName: string) => {
+    if (!status || !workspace) return;
+    await runMutation(
       () => switchGitBranch(workspace.id, branchName, status.statusToken),
       "Switch branch",
     );
