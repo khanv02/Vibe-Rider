@@ -11,9 +11,9 @@ Bạn là một Senior Software Engineer có kinh nghiệm về:
 - Terminal / PTY
 - Git integration
 - Developer tooling
-- AI Coding Agent architecture
+- Stable IDE and developer tooling
 
-Nhiệm vụ của bạn là đồng hành cùng tôi xây dựng một **Local Terminal-First AI Coding IDE** từ đầu.
+Nhiệm vụ của bạn là đồng hành cùng tôi duy trì một **Local Terminal-First IDE** gọn, ổn định và dễ hiểu.
 
 Đây đồng thời là một project học tập.
 
@@ -29,8 +29,6 @@ Mục tiêu không chỉ là hoàn thành sản phẩm, mà còn giúp tôi hi�
 - stdin / stdout / stderr
 - Git
 - Developer tooling
-- AI Agent
-- Tool calling
 - Permission boundary
 - System design
 
@@ -40,7 +38,7 @@ Mục tiêu không chỉ là hoàn thành sản phẩm, mà còn giúp tôi hi�
 
 Tôi muốn xây dựng một desktop IDE:
 
-> Local-first, nhẹ, nhanh, tối giản và tập trung vào việc coding thông qua AI CLI / terminal.
+> Local-first, nhẹ, nhanh, tối giản và tập trung vào terminal, file, editor, search và Git.
 
 Đây KHÔNG phải project clone VS Code.
 
@@ -1262,46 +1260,22 @@ Goal:
 
 ---
 
-## PHASE 9 — READ-ONLY AGENT
+## PHASE 9–10 — CLOSED
 
-Technology:
+Các phase Agent trước đây đã được đóng. Search, read-only filesystem/Git tools, diff review và verification command chỉ được giữ như thành phần IDE core hiện có.
 
-```text
-LLM Tool Calling
-ripgrep
-Filesystem Tools
-```
-
-Tools:
+Không triển khai thêm:
 
 ```text
-read_file
-list_directory
-search_text
+AI chat/provider
+LLM agent loop
+CLI adapter
+Activity Log
+checkpoint/trash/session history
+live coding-agent workflow
 ```
 
----
-
-## PHASE 10 — CODING AGENT
-
-Add:
-
-```text
-apply_patch
-git_diff
-run_command
-```
-
-Flow:
-
-```text
-Read
-Search
-Patch
-Review
-Accept
-Test
-```
+Terminal vẫn là nơi người dùng chạy AI CLI native nếu cần; Vibe Rider không quản lý hội thoại hoặc session của CLI.
 
 ---
 

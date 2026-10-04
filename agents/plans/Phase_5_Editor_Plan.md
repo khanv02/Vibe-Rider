@@ -201,7 +201,7 @@ Nếu write đang chạy, backend workspace lease đảm bảo commit old-root h
 - Hai model diff thuộc viewer, URI khác edit models; cả hai sides read-only. Close/switch preview dispose đúng models/listeners, không dispose/edit live file model.
 - Inline diff ở panel hẹp, side-by-side khi đủ width; resize/hidden/show theo cùng host layout contract. Apply/Accept buttons chưa xuất hiện ở Phase 5.
 - Diff preview đang mở vẫn giữ edit tabs. Quay về edit khôi phục active model/cursor; Ctrl+S trong diff không lưu snapshot.
-- Git Phase 6 cung cấp staged/unstaged snapshots; AI Phase 10 sở hữu proposal/approval và file-write operation riêng. Viewer không được cấp quyền tự apply.
+- Git Phase 6 cung cấp staged/unstaged snapshots; Editor sở hữu draft/revision và review state. Viewer không được tự ghi filesystem ngoài thao tác Accept rõ ràng của IDE.
 
 ## 10. Files cần tạo/sửa
 
@@ -300,6 +300,6 @@ Frontend chưa có test runner riêng; `npm run build`, Rust tests/clippy và `t
 
 ## 13. Bàn giao Phase 6 và kiến thức đạt được
 
-Phase 6 nhận file snapshot/revision contract, editor model owner và shared Diff Viewer. Git operation refresh chỉ báo disk change, không overwrite dirty editor; Git diff service cung cấp snapshots cho viewer. AI Accept/Reject được xây ở Phase 10 qua write/approval contract riêng.
+Phase 6 nhận file snapshot/revision contract, editor model owner và shared Diff Viewer. Git operation refresh chỉ báo disk change, không overwrite dirty editor; Git diff service cung cấp snapshots cho viewer. Accept/Reject chỉ là primitive review của IDE, không thuộc một coding-agent riêng.
 
 Qua phase này cần hiểu model/view ownership, encoding và disk bytes, optimistic conflict detection, save snapshot, guarded lifecycle và cleanup. Các concept này cũng áp dụng cho form nhiều tab, app ghi local files và UI review thay đổi.

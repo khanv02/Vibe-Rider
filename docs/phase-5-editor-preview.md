@@ -69,6 +69,6 @@ Commands và ma trận native chi tiết nằm ở mục 12 của plan. Khi tri�
 
 ## 6. Bàn giao
 
-Phase 6 sử dụng editor snapshot/revision và Shared Diff Viewer cho Git diff; Git refresh không reset dirty buffer. AI proposal/apply thuộc Phase 10. Không coi việc hoàn tất plan này là chuyển sang Phase 6.
+Phase 6 sử dụng editor snapshot/revision và Shared Diff Viewer cho Git diff; Git refresh không reset dirty buffer. Patch review hiện có chỉ là primitive IDE, không mở rộng thành coding-agent.
 
 Tài liệu liên quan: [Phase 4 Preview](phase-4-right-panel-preview.md), [README](../README.md).

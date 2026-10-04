@@ -253,6 +253,6 @@ npm run tauri -- build --no-bundle
 - [ ] Refresh không ghi đè dirty editor buffer hoặc reset terminal sessions.
 - [ ] Automated/native matrix có actual results và evidence; README/roadmap khớp trạng thái.
 
-Phase 7 nhận Git workflow để dogfooding sửa code → build/test → review → commit. Phase 9 tái dùng `git_status`/`git_diff` qua read-only registry; không cấp mutation cho read-only agent. Phase 10 quản lý approval riêng, không tự commit/push.
+Phase 7 nhận Git workflow để dogfooding sửa code → build/test → review → commit. Các read-only tool và approval boundary đã đóng ở mức IDE core; Git UI vẫn là nơi duy nhất thực hiện mutation.
 
 Kiến thức cần đạt: phân biệt HEAD/index/disk/draft; parse machine output; process ownership và bounded I/O; confirmation gắn phiên bản; lỗi/cancel không đồng nghĩa rollback. Các concept này áp dụng cho mọi desktop tool gọi CLI và review thay đổi dữ liệu local.

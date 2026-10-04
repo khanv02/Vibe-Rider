@@ -1,407 +1,61 @@
-# Kế hoạch triển khai Vibe Rider V1
+# Kế hoạch triển khai Vibe Rider
 
-Nguồn yêu cầu và thứ tự triển khai: [Project Instruction](../rules/Project_Instruction.md).
+Vibe Rider là desktop IDE local-first, terminal-first. Roadmap hiện tại tập trung vào IDE core và không mở rộng thành AI chat, agent loop hoặc session manager.
 
-File này là kế hoạch thực hiện, không thay thế yêu cầu sản phẩm trong `Project_Instruction.md`. Khi hai tài liệu khác nhau, `Project_Instruction.md` được ưu tiên.
-
-## 1. Mục tiêu và phạm vi
-
-Vibe Rider là desktop IDE local-first, terminal-first cho developer làm việc với terminal và AI CLI.
-
-Mục tiêu V1:
-
-- Tauri 2 chạy trên Windows.
-- Terminal là main workspace.
-- Hỗ trợ bốn terminal độc lập.
-- Explorer, Editor và Git là supporting tools ở bên phải.
-- Rust sở hữu filesystem, process, PTY, Git, search và permission boundary.
-- Người dùng kiểm soát thao tác ghi file và chạy command của AI.
-
-Stack theo tài liệu nguồn:
+## Phạm vi hiện hành
 
 ```text
-Tauri 2
-Rust
-React
-TypeScript
-Vite
-Zustand
-xterm.js
-portable-pty hoặc PTY abstraction phù hợp
-Monaco Editor
-Git CLI
-ripgrep
+Workspace → Terminal → Explorer → Editor → Search → Git → UX ổn định
 ```
 
-Không đưa vào kế hoạch: cloud backend, authentication, collaboration, account system, plugin marketplace, microservices, Docker, database, vector database, multi-agent system, full VS Code compatibility, full LSP hoặc debugger.
-
-## 2. Nguyên tắc kiến trúc
-
-```text
-React UI
-   ↕
-Tauri IPC
-   ↕
-Rust services
-   ↕
-Filesystem / PTY / process / Git CLI / ripgrep
-```
-
-- Terminal là vùng chính; supporting tools không được chiếm vai trò workspace trung tâm.
-- Frontend không tự thực hiện operation nhạy cảm với hệ thống.
-- Rust phải kiểm tra workspace, path traversal, absolute path và symlink/junction trước operation filesystem.
-- Không expose arbitrary command cho frontend nếu không cần. Command của coding agent luôn đi qua permission và approval.
-- Không tạo global store khổng lồ. Chỉ tách `workspaceStore`, `terminalStore`, `editorStore`, `uiStore`, `gitStore` khi state thực sự cần.
-- Không hard-code chức năng cho Terminal 1–4. Các command minh họa trong mock chỉ là ví dụ.
-- Chỉ tạo module khi đến phase có responsibility tương ứng; không sinh trước toàn bộ hệ thống.
-
-## 3. Thứ tự phase
-
-Thứ tự mặc định theo `Project_Instruction.md`:
-
-```text
-0 Foundation
-  → 1 Workspace
-  → 2 Terminal Core
-  → 3 Four Terminals
-  → 4 Right Panel
-  → 5 Editor
-  → 6 Git
-  → 7 UX
-  → 9 Read-only Agent
-  → 10 Coding Agent
-```
-
-Theo yêu cầu hiện tại của user, các phần độc lập **7.1–7.4** được thực hiện song song Phase 6 theo [Phase 7 UX Plan](Phase_7_UX_Plan.md). Shared-file integration vẫn tuần tự theo owner/checkpoint; **7.5 và nghiệm thu toàn Phase 7 chờ Phase 6**, không bỏ qua native acceptance Phase 3/4/5.
-
-| Phase | Công nghệ chính | Kết quả chính |
-| --- | --- | --- |
-| 0 — Foundation | Tauri 2, Rust, React, TypeScript, Vite | Desktop shell và terminal-first layout mock |
-| 1 — Workspace | Rust filesystem, Tauri IPC, React | Open Folder, read directory và Explorer |
-| 2 — Terminal Core | Rust, PTY, `portable-pty`, xterm.js, Tauri IPC | Một PowerShell terminal hoạt động thật |
-| 3 — Four Terminals | PTY session manager, React state | Bốn session độc lập và layout 1/2/4 |
-| 4 — Right Panel | React layout state | Panel Git/Explorer/Editor switchable, collapsible, resizable |
-| 5 — Editor | Monaco Editor, Zustand | Open, edit, save, tabs, dirty state và Diff Editor |
-| 6 — Git | Git CLI, Rust process | Status, diff, add, restore, commit và push |
-| 7 — UX | React state, persistence | Shortcut, restore workspace, panel layout và dogfooding chính IDE |
-| 9 — Read-only Agent | LLM tool calling, ripgrep, filesystem tools | Agent đọc, liệt kê và tìm code |
-| 10 — Coding Agent | Patch, diff, permission, command execution | Read → Search → Patch → Review → Accept → Test |
-
-## 4. Kế hoạch theo phase
-
-### Phase 0 — Foundation
-
-**Mục tiêu:** desktop app chạy được với terminal-first layout mock. Chưa có filesystem, PTY, Git, Monaco, ripgrep hoặc AI functionality.
-
-**Kiến thức cần hiểu:**
-
-- Tauri là desktop shell, không phải terminal engine.
-- React/Vite render và build frontend.
-- Rust/Tauri command tạo boundary IPC.
-- Browser build không chứng minh được native Tauri build.
-
-**Architecture:**
-
-```text
-Tauri window
-    ↓
-React AppLayout
-    ├── TerminalWorkspace: mock 2 × 2
-    ├── RightPanel: activity rail + Git placeholder
-    └── StatusBar
-```
-
-**Data flow của IPC proof:**
-
-```text
-User click Ping Rust
-        ↓
-React invoke("ping")
-        ↓
-Tauri IPC
-        ↓
-Rust ping command
-        ↓
-"pong from Rust"
-```
-
-**Files và responsibility hiện tại:**
-
-```text
-src/App.tsx                         # Ghép shell và gọi IPC demo
-src/components/AppLayout.tsx       # Header, body grid và status bar host
-src/components/TerminalWorkspace.tsx # Mock terminal 2 × 2
-src/components/RightPanel.tsx       # Activity rail và Git placeholder
-src/components/StatusBar.tsx        # Foundation status bar
-src/styles.css                       # Visual layout system
-src-tauri/src/lib.rs                 # Tauri builder và ping command
-src-tauri/src/main.rs                # Native entry point
-src-tauri/tauri.conf.json            # Window và Vite configuration
-```
-
-**Task theo thứ tự:**
-
-- [ ] **0.1 — Kiểm tra môi trường Windows:** Node.js, npm, Rust `stable-msvc`, C++ Build Tools, WebView2 và Git. Ghi rõ tool nào thiếu.
-- [ ] **0.2 — Hoàn thiện scaffold:** Tauri 2 + React + TypeScript + Vite, một package manager và một lockfile; kiểm tra frontend build.
-- [x] **0.3 — Dựng app shell:** mock bốn terminal 2 × 2, activity rail bên phải, Git mặc định và status bar.
-- [x] **0.4 — Xác minh nền tảng:** native Tauri dev mode, IPC `ping`, frontend build, Rust check và layout ở cửa sổ tối thiểu.
-
-**Expected result:** cửa sổ native mở được, terminal là vùng chính, supporting tools nằm bên phải và không có tính năng Phase 1 trở đi được giả làm đã hoạt động.
-
-### Phase 1 — Workspace
-
-Kế hoạch chi tiết: [Phase 1 — Workspace](Phase_1_Workspace_Plan.md).
-
-**Mục tiêu:** mở một thư mục local và duyệt cây thư mục lazy-loaded bằng Rust filesystem.
-
-**Kiến thức:** path, directory entry, absolute/relative path, IPC request/response, containment và lazy loading.
-
-**Architecture:**
-
-```text
-User chọn folder
-        ↓
-Native dialog / Tauri
-        ↓
-Rust Workspace + Path Guard
-        ↓
-read_directory(path)
-        ↓
-Explorer hiển thị một cấp children
-```
-
-**Task:**
-
-- [x] **1.1 — Workspace contract:** open-folder flow, root path, workspace name/id và lỗi hợp lệ.
-- [x] **1.2 — Path guard:** chặn `..`, path ngoài root, absolute path không hợp lệ và symlink/junction/reparse traversal.
-- [x] **1.3 — Directory API:** trả children một cấp gồm tên, path và loại entry; không recursive scan.
-- [x] **1.4 — Explorer UI:** expand, collapse, refresh, loading, empty và error state.
-- [x] **1.5 — Workspace switch:** bỏ request/cây cũ, cleanup state liên quan và không trả kết quả IPC cũ.
-
-**Nghiệm thu:** mở được folder có dấu/khoảng trắng; cancel không mất state; path traversal và junction thoát root bị chặn; repository lớn không bị đọc đệ quy.
-
-### Phase 2 — Terminal Core
-
-Kế hoạch chi tiết: [Phase 2 — Terminal Core](Phase_2_Terminal_Core_Plan.md).
-
-**Mục tiêu:** một PowerShell terminal hoạt động thật trong workspace.
-
-**Kiến thức:** process, shell, PTY, stdin, stdout, stderr, ANSI, resize và lifecycle.
-
-**Architecture:**
-
-```text
-xterm.js
-   ↕ input / output
-Tauri IPC
-   ↕
-Rust PTY manager
-   ↕
-PowerShell process
-```
-
-**Data flow:**
-
-```text
-User input → xterm.js → IPC → PTY stdin → PowerShell
-PowerShell stdout/stderr → PTY reader → IPC → xterm.js
-```
-
-**Task:**
-
-- [x] **2.1 — Spawn PTY:** tạo PowerShell tại workspace, environment và kích thước ban đầu; trả session ID.
-- [x] **2.2 — Stream output:** reader loop → IPC stream/channel → xterm; giữ Unicode/ANSI và giới hạn buffer.
-- [x] **2.3 — Send input:** route theo session ID; hỗ trợ Enter, phím mũi tên, paste và Ctrl+C.
-- [x] **2.4 — Resize:** pane → xterm fit → rows/columns PTY; không spawn lại shell.
-- [x] **2.5 — Lifecycle:** running/exited/error, close/restart, unregister listener và cleanup process con.
-
-**Nghiệm thu:** `echo hello`, `Get-Location`, lệnh output liên tục, Ctrl+C, resize và đóng app đều hoạt động đúng.
-
-### Phase 3 — Four Terminals
-
-Kế hoạch chi tiết: [Phase 3 — Four Terminals](Phase_3_Four_Terminals_Plan.md). Trạng thái: **đã triển khai implementation; native multi-pane verification đang chờ**.
-
-**Mục tiêu:** bốn PTY session độc lập với layout 1, 2 và 4 terminal.
-
-**Kiến thức:** session ownership, routing input/output, process lifecycle và component lifecycle.
-
-**Task:**
-
-- [ ] **3.1 — Session manager:** map session ID → PTY/process; mỗi session có lifecycle riêng.
-- [ ] **3.2 — Grid 2 × 2:** bốn pane có focus/status riêng; không gán nhiệm vụ cố định cho pane.
-- [ ] **3.3 — Layout modes:** đổi 1/2/4 chỉ ẩn/hiện pane, không terminate session bị ẩn.
-- [ ] **3.4 — Session actions:** chọn, close và restart từng session; cleanup đúng khi đổi workspace.
-- [ ] **3.5 — Independent verification:** chạy shell, dev server, build/test và CLI tương tác đồng thời.
-
-**Nghiệm thu:** output/phím không lẫn session; đổi 4 → 1 → 4 giữ process; restart một session không ảnh hưởng ba session còn lại.
-
-### Phase 4 — Right Panel
-
-Kế hoạch chi tiết: [Phase 4 — Right Panel](Phase_4_Right_Panel_Plan.md). Checklist: [Phase 4 Preview](../../docs/phase-4-right-panel-preview.md). Trạng thái: **đã triển khai frontend; native verification đang chờ**.
-
-**Mục tiêu:** biến right-panel mock của Phase 0 thành container hỗ trợ thật mà không làm gián đoạn terminal.
-
-**Kiến thức:** layout state, focus, resize constraint, collapse và giữ state khi switch panel.
-
-**Task:**
-
-- [x] **4.1 — Panel contract:** `activeRightPanel`, `rightPanelOpen`, `rightPanelWidth`; Git mặc định.
-- [x] **4.2 — Switch panel:** Git, Explorer và Editor; chỉ một panel chính hiển thị.
-- [x] **4.3 — Resize/collapse:** giới hạn width, đóng/mở panel và editor normal/expanded.
-- [ ] **4.4 — State retention:** switch panel không làm mất terminal session hoặc Explorer state.
-
-**Nghiệm thu:** Git mặc định; switch/collapse/resize hoạt động; đóng panel để terminal chiếm gần toàn màn hình.
-
-**Actual verification:** `npm run build` pass; `cargo test --manifest-path src-tauri/Cargo.toml` pass 16/16; `npm run tauri -- dev` compile/startup pass. Native click-through cho switch, resize, focus và state retention chưa được đánh dấu đạt.
-
-### Phase 5 — Editor
-
-Kế hoạch chi tiết: [Phase 5 — Editor](Phase_5_Editor_Plan.md). Checklist: [Phase 5 Preview](../../docs/phase-5-editor-preview.md). Trạng thái: **core đã triển khai; native click-through đang chờ**.
-
-**Mục tiêu:** mở, sửa và lưu file bằng Monaco; có Diff Editor dùng chung.
-
-**Kiến thức:** editor model, buffer, dirty state, encoding, newline, save và conflict với thay đổi bên ngoài.
-
-**Baseline gate:** kiểm lại layout 1/2/4, tools tự hide, resize/focus và state retention; thống nhất active-tool click giữa code/tài liệu trước tích hợp Editor UI. Không tự nghiệm thu Phase 3/4 khi viết kế hoạch Phase 5.
-
-**Task:**
-
-- [x] **5.1 — File API:** `read_file` và `write_file` qua Rust path guard; quy định text/binary/size limit.
-- [x] **5.2 — Open file:** Explorer → Monaco model/tab; syntax highlighting.
-- [x] **5.3 — Edit/save:** dirty state, save và kiểm tra file đã đổi trước khi ghi.
-- [x] **5.4 — Tabs/lifecycle:** nhiều tab, close và Save/Discard/Cancel.
-- [x] **5.5 — Shared Diff Viewer:** read-only old/new snapshot cho Git và agent patch ở phase sau.
-
-**Nghiệm thu:** mở nhiều file, đổi tab không mất buffer, save đúng file, giữ Unicode/newline và diff không tự ghi filesystem.
-
-**Contract cần kiểm chứng:** UTF-8/BOM/LF/CRLF và size limit; Save kiểm disk revision, giữ edit mới trong lúc save; dirty guard trước `open_workspace` và native app close; Monaco workers chạy offline ở native release. Actual results theo checklist riêng, không dùng build evidence của phase cũ thay thế.
-
-### Phase 6 — Git
-
-Kế hoạch chi tiết: [Phase 6 — Git](Phase_6_Git_Plan.md). Thiết kế, contracts và checklist: [Phase 6 Git Preview](../../docs/phase-6-git-preview.md). Trạng thái: **core Git service/UI đã triển khai**, automated checks đạt; native acceptance Phase 3/4/5 vẫn còn gate riêng.
-
-**Mục tiêu:** thao tác Git qua operation rõ ràng và Git CLI, không cho frontend chạy arbitrary Git command.
-
-**Kiến thức:** working tree, index, HEAD, staged/unstaged, branch, commit và remote.
-
-**Task:**
-
-- [ ] **6.1 — Git service:** working directory cố định, arguments riêng, exit code/output/error.
-- [ ] **6.2 — Status:** branch, staged, unstaged, untracked, rename và filename có dấu/khoảng trắng.
-- [ ] **6.3 — Diff:** staged/unstaged, file mới/xóa và binary; dùng Diff Viewer cho text.
-- [ ] **6.4 — Add/restore:** operation riêng, validate path và confirmation trước restore.
-- [ ] **6.5 — Commit/push:** message, loading, lỗi auth/remote, timeout/cancel; không force push.
-- [ ] **6.6 — Refresh:** refresh sau operation/focus và không ghi đè editor buffer dirty.
-
-**Nghiệm thu:** status/diff/stage/restore/commit đúng trên repository thử nghiệm; push không làm treo UI; lỗi Git được hiển thị rõ.
-
-**Dependency và checkpoints:** hoàn tất gate native Phase 5 và regression Phase 3/4 trước tích hợp Git UI/mutations; preparation contracts/fixtures có thể làm trước. Tasks 6.1–6.6 có checkpoints về process/path/lease, NUL parser, snapshot/model ownership, destructive confirmation, staged-only commit/upstream push và refresh giữ draft. Phối hợp Phase 7 qua C0–C3, shared-file adapters có một owner tích hợp.
-
-### Phase 7 — UX
-
-Kế hoạch chi tiết: [Phase 7 — UX, song song Phase 6](Phase_7_UX_Plan.md). Trạng thái: **core 7.1–7.4, Git UI/mutations và workspace/Git transition guard đã triển khai; native acceptance và dogfooding đang chờ**. Shortcuts/layout/persistence và phần độc lập của restore đã làm cùng Git; backend/frontend đã có wait/cancel foundation cho workspace/exit.
-
-**Mục tiêu:** dùng IDE để tiếp tục phát triển chính IDE.
-
-**Task:**
-
-- [x] **7.1 — Shortcuts:** core routing layout 1/2/4 và focus terminal/panel đã triển khai; native conflict/input matrix còn chờ.
-- [x] **7.2 — Layout polish:** controlled layout/focus, bounded persistence fields và status context đã triển khai; native minimum-window matrix còn chờ.
-- [x] **7.3 — Persistence:** versioned UI preferences, validation và app config write đã triển khai; native restart/storage matrix còn chờ.
-- [x] **7.4 — Restore:** remembered workspace validation, Rust restore boundary và shell mới đã triển khai; native transition matrix còn chờ.
-- [ ] **7.5 — Dogfooding:** sửa code, chạy build/test, xem Git diff và commit trong chính IDE.
-
-**Nghiệm thu:** hoàn thành một vòng sửa code → build/test → review diff → commit; restart giữ layout/workspace; không mất terminal input hoặc dirty buffer.
-
-Implementation evidence: [Phase 7 UX Preview](../../docs/phase-7-ux-preview.md). Task 7.5 và nghiệm thu toàn phase chờ native matrix/dogfooding.
+### Core đã có
+
+- Foundation: Tauri, Rust, React, TypeScript và Vite.
+- Workspace: Open Folder, workspace identity, remembered workspace và filesystem guard.
+- Terminal: PTY, tối đa bốn pane, layout 1/2/4, resize, lifecycle và drag path vào terminal.
+- Right Panel: Git, Explorer, Editor, collapse, resize, side selection và persistence.
+- Editor: Monaco, tabs, save, dirty state, undo, diff review và kéo file để mở.
+- Git: status, diff, stage/unstage, commit, push, branch và restore.
+- Search: literal search có giới hạn, cancel, path guard và mở kết quả trong Editor.
+- Explorer: create/delete, move file/folder bằng drag-and-drop và workspace refresh.
+
+### Việc còn hợp lý
+
+- Native click-through và smoke test trên Windows.
+- Sửa bug, regression và vấn đề UX cụ thể.
+- Kiểm tra drag-and-drop, terminal focus, dirty buffer, Git transition và workspace restore.
+- Cải thiện performance hoặc accessibility khi có bằng chứng từ sử dụng thực tế.
+- Packaging và clean-machine verification khi chuẩn bị phát hành.
+
+## Những phase đã đóng
 
 ### Phase 9 — Read-only Agent
 
-> **Đã đóng roadmap (2026-10-04).** Giữ lại Search, Search UI và read-only tools như thành phần IDE core đã có. Không triển khai tiếp agent loop, provider/CLI adapter, evidence UI hoặc Activity/session history. Nội dung bên dưới là lịch sử kế hoạch, không phải backlog hiện hành.
-
-Kế hoạch chi tiết: [Phase 9 — Read-only Agent](Phase_9_Read_Only_Agent_Plan.md). Tiến độ: **nền tảng 9.1–9.3 và local Activity Log đã triển khai; 9.4 agent loop/CLI adapter và native acceptance còn pending**. Preview actual results: [Phase 9 Read-only Agent](../../docs/phase-9-read-only-agent-preview.md). Hướng đã chốt là AI CLI + local Activity Log; registry read-only và activity contract được giữ độc lập để tích hợp CLI sau.
-
-**Mục tiêu:** agent tìm và đọc code trong workspace để trả lời có căn cứ.
-
-**Task:**
-
-- [x] **9.1 — Search service:** Rust gọi ripgrep, giới hạn result/output/time và hỗ trợ cancel.
-- [x] **9.2 — Search UI:** path, line, snippet và mở vị trí trong editor.
-- [x] **9.3 — Read tools:** `read_file`, `list_directory`, `search_text`, `git_status`, `git_diff`.
-- [ ] **9.4 — Agent loop:** validate tool arguments, execute qua Rust, giới hạn bước/thời gian/output.
-- [x] **9.5a — Local Activity Log:** session history, checkpoint, terminal lifecycle và resume log; local-only, bounded và redacted.
-- [ ] **9.5b — Tool activity/evidence:** hiển thị dữ liệu agent đã đọc và câu trả lời có path/line; chỉ read-only registry.
-
-**Nghiệm thu:** agent tìm đúng code; path ngoài workspace bị từ chối; no-match/error/cancel không tạo loop vô hạn; không có filesystem write.
+Đã đóng. Search, Search UI và read-only filesystem/Git tools được giữ như IDE core. Không tiếp tục agent loop, provider, CLI adapter, evidence UI, Activity Log, checkpoint, trash hoặc session history.
 
 ### Phase 10 — Coding Agent
 
-> **Đã đóng roadmap (2026-10-04).** Không tiếp tục xây coding-agent, live CLI adapter, AI chat/provider hoặc workflow tự động. Giữ các primitive an toàn đã có như patch review, approval boundary, verification command và packaging; chỉ sửa bug/regression khi cần. Nội dung bên dưới là lịch sử kế hoạch.
+Đã đóng. Không tiếp tục AI coding-agent, live CLI integration, AI chat/provider hoặc workflow tự động Read → Patch → Accept → Test. Các primitive patch review, approval boundary và verification command chỉ được giữ nếu chúng vẫn hữu ích cho IDE thông thường.
 
-Kế hoạch chi tiết: [Phase 10 — Coding Agent](Phase_10_Coding_Agent_Plan.md). Bám hướng AI CLI/terminal đã chọn; Phase 8 AI Chat đã bỏ. Nền tảng proposal/command có thể phát triển song song Phase 9, live CLI integration cần protocol và contracts run/evidence/cancel tương ứng.
+### Phase 11
 
-**Mục tiêu:** Read → Search → Patch → Review → Accept → Test với approval rõ ràng.
+Không tồn tại trong roadmap hiện hành.
 
-**Trạng thái:** core 10.1–10.6 đã triển khai: backend proposal/apply theo ID, review giữ dirty draft, command proposal với Run/Cancel/timeout/output cap, Activity Log verification và MSI/NSIS packaging. CSP/clean-machine acceptance và live adapter của một CLI bên ngoài vẫn là acceptance riêng vì sản phẩm đã chọn AI CLI chạy trực tiếp trong terminal.
+## Nguyên tắc
 
-**Task:**
+- Không thêm feature lớn chỉ vì roadmap cũ có đề cập.
+- Không tạo session/history layer riêng cho CLI bên ngoài.
+- Không parse terminal output để suy ra hội thoại, approval hoặc patch.
+- Không thêm provider, database, cloud sync, plugin marketplace, debugger hoặc full LSP nếu chưa có nhu cầu thực tế.
+- Mỗi thay đổi phải có ownership rõ ràng, path/process safety và kiểm tra tương ứng.
 
-- [x] **10.1 — Patch proposal:** Rust sở hữu proposal bất biến theo workspace/window, revision, digest, TTL và path/text validation; draft adapter gọi backend.
-- [x] **10.2 — Review:** Diff Viewer dùng proposal ID; Accept/Reject có lifecycle guard và Reject giữ draft thủ công.
-- [x] **10.3 — Apply:** backend exact Apply theo ID, revalidate revision/content, mutation lease và giữ edits phát sinh trong lúc apply.
-- [x] **10.4 — Run command:** allowlist executable/args/cwd, proposal trước Run, Cancel, timeout, output cap, process tree và workspace admission.
-- [x] **10.5 — Test loop:** Activity panel có prepare → review → Run/Cancel → bounded result; không tự commit/push; AI CLI vẫn chạy trực tiếp trong terminal.
-- [x] **10.6 — V1 packaging:** release executable, bundle icon, MSI và NSIS installer đã build pass; CSP review và clean-machine dependency matrix vẫn cần acceptance thủ công.
-
-**Nghiệm thu:** Reject không ghi; Accept chỉ áp dụng proposal đã duyệt; path traversal/stale patch bị chặn; Cancel không chạy command; process được cleanup.
-
-Checkpoints thực tế: C1 proposal/review/apply, C2 command lifecycle, C3 verification UI và C4 packaging đã pass automated gates. C3 live CLI adapter không được thêm vì terminal là integration boundary đã chọn; CSP/clean-machine/native click-through vẫn là bước nghiệm thu thủ công. Checklist phân biệt core runtime với acceptance native/release.
-
-## 5. Quy trình thực hiện mỗi task
-
-Theo working style trong `Project_Instruction.md`, mỗi task phải đi qua:
-
-1. **Mục tiêu:** vấn đề task giải quyết.
-2. **Kiến thức:** What / Why / How cần hiểu.
-3. **Architecture:** các layer và ownership.
-4. **Data Flow:** request, response, event hoặc process flow.
-5. **Files cần tạo/sửa:** responsibility từng file.
-6. **Chia task:** task hiện tại đủ nhỏ để kiểm chứng.
-7. **Implement task đầu tiên:** không generate toàn bộ phase trong một lượt.
-8. **Giải thích code:** tập trung vào ownership, state và boundary.
-9. **Test:** expected result và actual result rõ ràng.
-10. **Kiến thức vừa học:** concept, lý do quan trọng và ứng dụng ngoài project.
-
-Không chuyển phase chỉ vì code đã được viết. Native feature phải được kiểm tra trong Tauri trên Windows; browser-only preview chỉ đủ cho frontend.
-
-## 6. Trạng thái hiện tại và bước tiếp theo
-
-Phase hiện tại: **Phase 6 — Git và Phase 7 — UX đã triển khai core; native acceptance và Task 7.5 dogfooding đang chờ. Native Phase 3/4/5 vẫn là gate độc lập. Phase 9 đã triển khai nền tảng 9.1–9.3 và local Activity Log; 9.4/9.5b cùng native acceptance còn pending.**
-
-| Hạng mục | Trạng thái |
-| --- | --- |
-| React + TypeScript + Vite scaffold | Có |
-| Tauri config và Rust entry point | Có |
-| Terminal-first layout mock | Đã triển khai |
-| Phase 2 PTY/xterm/input/resize/lifecycle | Đã triển khai; automated/native PTY tests pass |
-| IPC `ping` proof-of-boundary | Native đã xác minh |
-| `npm run build` | Đã đạt |
-| `rustc` / `cargo` trong `PATH` | Đã có `1.99.0`, toolchain `stable-x86_64-pc-windows-msvc`; kiểm tra 2026-10-03 |
-| Tauri native dev mode | Đã xác minh |
-
-Phase 1 và Phase 2 đã qua implementation, automated verification và native UI click-through. Phase 3 Four Terminals đã triển khai multi-session manager, grid/layout 1/2/4 và actions/lifecycle; `npm run build`, `cargo fmt --check`, `cargo check`, `cargo test` (16/16) và `cargo clippy -D warnings` đã pass. Native multi-pane click-through và full smoke matrix chưa được đánh dấu nghiệm thu.
-
-Phase 4 đã triển khai state contract, switch ba tools, full collapse/reopen, resize và Editor Normal/Expanded. Task 4.1–4.3 đã có code/build evidence; Task 4.4 còn cần native click-through để xác nhận focus, xterm/Explorer retention và min-window behavior.
-
-Phase 5 đã triển khai File API, Monaco/model registry, tabs/save/dirty guards và Shared Diff Viewer. `npm run build`, `cargo fmt --check`, `cargo test` (19/19), `cargo clippy -D warnings`, `npm run tauri -- dev` startup và `npm run tauri -- build --no-bundle` đã pass; native Editor/layout click-through còn pending.
-
-Phase 6 đã có [plan Git](Phase_6_Git_Plan.md) và [contracts/checklist](../../docs/phase-6-git-preview.md); core implementation và automated Git test evidence đã có. Native acceptance vẫn là gate riêng và không được suy ra từ build/test.
-
-Phase 7 có core shortcuts/layout/persistence/restore và Git transition guard theo [UX preview](../../docs/phase-7-ux-preview.md); native matrix và Task 7.5 còn chờ. Phase 9 đã triển khai Search service, Search UI/Editor navigation, read-only registry 9.1–9.3 và local Activity Log 9.5a; actual results và ma trận còn thiếu ghi tại [Phase 9 Preview](../../docs/phase-9-read-only-agent-preview.md). Bước tiếp theo là CLI adapter/agent loop, native Search/Activity acceptance và tool evidence UI.
+## Verification tối thiểu
 
 ```powershell
-cargo check --manifest-path src-tauri/Cargo.toml
-npm run tauri -- dev
+npm run build
+cargo fmt --check --manifest-path src-tauri/Cargo.toml
+cargo check --manifest-path src-tauri/Cargo.toml --offline
+cargo test --manifest-path src-tauri/Cargo.toml --offline
 ```
 
-Khi chạy native, cần kiểm tra: cửa sổ mở được, port `1420` khớp, nút `Ping Rust` trả `pong from Rust`, layout không overflow ở `960 × 600` và app đóng không để process mồ côi.
+Native acceptance không được suy ra chỉ từ build hoặc unit tests; cần chạy app thật trên Windows khi thay đổi ảnh hưởng terminal, layout, Editor, Explorer hoặc Git.

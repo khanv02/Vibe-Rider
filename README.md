@@ -1,142 +1,94 @@
 # Vibe Rider
 
-Vibe Rider là IDE desktop gọn nhẹ cho việc làm việc với các project local. Ứng dụng kết hợp terminal tích hợp, trình duyệt file, editor, tìm kiếm trong workspace, Git và nhật ký hoạt động trong một giao diện tập trung.
+Vibe Rider là desktop IDE local-first, terminal-first cho developer làm việc với project trên máy của mình.
 
-Vibe Rider được thiết kế cho developer muốn giữ mã nguồn và thao tác phát triển ngay trên máy của mình, với các thay đổi file và thao tác có ảnh hưởng được hiển thị rõ ràng trước khi thực hiện.
+Mục tiêu hiện tại là một IDE gọn, ổn định và dễ hiểu: terminal tích hợp, Explorer, Editor, Search, Git và các thao tác file an toàn. Vibe Rider không phải AI chat app và không có session manager riêng cho các CLI.
 
-> **Trạng thái:** Vibe Rider hiện đang trong giai đoạn phát triển sớm (`0.1.0`). Một số tính năng coding-agent đang được xây dựng và chưa nên xem là dịch vụ AI hoàn chỉnh độc lập.
+## Tính năng
 
-## Tính năng chính
+- Mở và ghi nhớ workspace local.
+- Tối đa bốn terminal độc lập, layout 1/2/4, resize và chạy shell trực tiếp trong workspace.
+- Explorer: duyệt, tạo, xóa và kéo file/folder để di chuyển trong workspace.
+- Kéo file/folder vào terminal để chèn đường dẫn.
+- Kéo file vào Editor để mở; hỗ trợ nhiều pane Editor.
+- Monaco Editor với tabs, dirty state, save, undo và review diff.
+- Search nội dung workspace, mở kết quả đúng file/dòng/cột.
+- Git status, diff, stage/unstage, commit, push, branch và restore working tree.
+- Light/dark theme, panel trái/phải, persistence và restore workspace gần nhất.
 
-- **Workspace local:** mở một thư mục project, ghi nhớ workspace gần nhất và chuyển workspace khi cần.
-- **Terminal tích hợp:** tối đa bốn terminal pane, hỗ trợ thay đổi bố cục, resize và chạy shell trực tiếp trong workspace.
-- **File Explorer:** duyệt thư mục, mở file, tạo file/thư mục mới, xoá entry và làm mới nội dung.
-- **Code editor:** chỉnh sửa file với Monaco Editor, nhiều tab, dirty state, undo/restore và cảnh báo trước khi mất thay đổi chưa lưu.
-- **Tìm kiếm workspace:** tìm nội dung trong file theo phạm vi thư mục, phân biệt hoa thường, huỷ tìm kiếm và mở kết quả trực tiếp tại dòng/cột tương ứng.
-- **Git tích hợp:** xem branch và status, xem diff, stage/unstage, commit, push, tạo branch và chuyển branch.
-- **Review thay đổi:** xem diff dùng chung trước khi chấp nhận hoặc từ chối một patch được đề xuất.
-- **Verification có kiểm soát:** đề xuất và chạy một số lệnh kiểm tra được cho phép trong workspace, với giới hạn thời gian và output.
-- **Tuỳ chỉnh giao diện:** light/dark theme, vị trí panel công cụ, kích thước panel, bố cục terminal và chế độ xác nhận khi đóng ứng dụng.
+## Phạm vi sản phẩm
 
-## Yêu cầu hệ thống
+Vibe Rider ưu tiên workflow IDE thông thường:
 
-Để chạy bản phát triển từ source, cần cài đặt:
+```text
+Open workspace → Edit → Save → Search → Git diff → Commit
+```
 
-- Node.js 18 trở lên và npm.
-- Rust toolchain stable và Cargo.
-- Git nếu muốn sử dụng các tính năng Git trong ứng dụng.
-- `ripgrep` (`rg`) trong `PATH` nếu muốn dùng tìm kiếm nội dung trong workspace.
-- Bộ công cụ build native phù hợp với hệ điều hành và Tauri 2.
+AI CLI có thể chạy trực tiếp trong terminal theo workflow native của từng CLI. Vibe Rider không tự quản lý lịch sử hội thoại, checkpoint, trash, session history, Activity Log, agent loop hay provider AI riêng.
 
-Vibe Rider được kiểm thử chính trên Windows. Tauri hỗ trợ nhiều nền tảng, nhưng khả năng tương thích và quy trình đóng gói trên macOS/Linux có thể cần cấu hình bổ sung.
+Các ý tưởng AI agent trước đây được đóng lại để giữ sản phẩm nhỏ và ổn định. Patch review và verification command chỉ được giữ ở mức primitive an toàn của IDE; không có kế hoạch mở rộng thành coding-agent.
 
-## Cài đặt và chạy từ source
+## Yêu cầu
 
-Clone repository rồi cài dependency frontend:
+- Windows là nền tảng được kiểm tra chính.
+- Node.js 18+ và npm.
+- Rust stable và Cargo.
+- Git nếu muốn dùng Git integration.
+- ripgrep (`rg`) trong `PATH` nếu muốn dùng Search.
+
+## Chạy từ source
 
 ```bash
 git clone <repository-url>
 cd vibe-rider
 npm install
-```
-
-Chạy ứng dụng ở chế độ phát triển:
-
-```bash
 npm run tauri dev
 ```
 
-Ứng dụng sẽ mở dưới dạng desktop app. Chọn **Open Workspace** để mở thư mục project cần làm việc.
+Chọn **Open Folder**, sau đó chọn một thư mục project local.
 
-## Các lệnh hữu ích
+## Lệnh phát triển
 
 ```bash
-# Chạy frontend Vite
-npm run dev
-
-# Kiểm tra TypeScript và tạo production frontend bundle
+# Frontend type-check và production bundle
 npm run build
 
-# Xem thử production bundle trong trình duyệt
-npm run preview
+# Tauri native development
+npm run tauri -- dev
 
-# Build ứng dụng Tauri không tạo installer
+# Build native executable, không tạo installer
 npm run tauri -- build --no-bundle
 
-# Build binary và installer native
-npm run tauri -- build
-
-# Kiểm tra Rust
-cargo check --manifest-path src-tauri/Cargo.toml
-cargo test --manifest-path src-tauri/Cargo.toml
+# Rust checks
 cargo fmt --check --manifest-path src-tauri/Cargo.toml
+cargo check --manifest-path src-tauri/Cargo.toml --offline
+cargo test --manifest-path src-tauri/Cargo.toml --offline
 ```
 
-Các artifact sau khi build nằm trong `src-tauri/target/release/bundle/` và phụ thuộc vào hệ điều hành/format được Tauri hỗ trợ.
+Native executable sau khi build nằm tại:
 
-## Cách sử dụng nhanh
-
-1. Mở Vibe Rider và chọn **Open Workspace**.
-2. Chọn một thư mục project local.
-3. Dùng Explorer để duyệt file hoặc ô Search để tìm file/nội dung.
-4. Mở file trong Editor, chỉnh sửa rồi lưu bằng `Ctrl+S`.
-5. Dùng các terminal pane để chạy lệnh trong workspace.
-6. Mở panel Git để xem thay đổi, diff và thực hiện thao tác Git.
-
-Khi đổi workspace hoặc đóng ứng dụng, Vibe Rider sẽ kiểm tra các file chưa lưu, terminal đang chạy và thao tác Git đang hoạt động trước khi tiếp tục, tuỳ theo chế độ xác nhận trong phần cài đặt.
+```text
+src-tauri/target/release/vibe-rider.exe
+```
 
 ## Mô hình an toàn
 
-Vibe Rider thực hiện các thao tác file và process native qua lớp Rust/Tauri. Các đường dẫn được giới hạn trong workspace hiện tại; các thao tác thay đổi quan trọng được kiểm tra lại trước khi ghi xuống disk.
+Filesystem, process, PTY, Git và Search đi qua Rust/Tauri. Path được giới hạn trong workspace; symlink/junction, traversal, absolute path ngoài phạm vi và thao tác ghi không hợp lệ bị từ chối.
 
-Các patch đề xuất đi theo quy trình:
-
-```text
-Draft trong Editor → Review diff → Accept hoặc Reject
-```
-
-Việc Reject không ghi thay đổi xuống filesystem. Việc Accept sẽ kiểm tra lại workspace, file, revision trên disk và nội dung gốc để tránh ghi đè thay đổi bên ngoài. Nếu file đã thay đổi kể từ lúc proposal được tạo, proposal có thể bị đánh dấu conflict để người dùng review lại.
-
-Các lệnh verification chỉ được chạy khi người dùng chủ động xác nhận và bị giới hạn bởi allowlist, working directory, timeout và kích thước output. Vibe Rider không tự tải hoặc tự cài `ripgrep`; công cụ này phải có sẵn trong PATH hoặc vị trí cài đặt đáng tin cậy.
-
-## AI coding agent
-
-Vibe Rider cung cấp nền tảng terminal, file tools, search và patch review để hỗ trợ workflow coding-agent. Hiện tại ứng dụng **không tự cung cấp một LLM provider hoặc agent loop độc lập**. Người dùng có thể chạy AI CLI của mình trong terminal; Vibe Rider không tự động diễn giải terminal output thành patch được phê duyệt.
-
-Để tiếp tục phiên cũ, hãy dùng cơ chế native của CLI trong terminal đúng workspace: `codex resume`, `claude --resume` hoặc `gemini --resume`. Các lệnh này chỉ hoạt động khi CLI tương ứng còn lưu session và đang dùng đúng profile/môi trường.
+Các thao tác thay đổi file được thực hiện rõ ràng từ UI. Git restore và file restore là thao tác IDE độc lập, không liên quan đến session restore hay chat history.
 
 ## Cấu trúc project
 
 ```text
-src/                 React UI, state và các API frontend
-src-tauri/src/       Rust commands, filesystem, terminal, Git và safety checks
-src-tauri/           Cấu hình Tauri, capability và native build
-public/              Asset tĩnh và hình ảnh ứng dụng
-docs/                Tài liệu thiết kế và trạng thái phát triển
-agents/              Kế hoạch triển khai nội bộ
+src/                 React UI, state và frontend APIs
+src-tauri/src/       Rust commands, filesystem, PTY, Git và safety checks
+src-tauri/           Tauri configuration và native build
+public/              Static assets
+agents/rules/        Project rules hiện hành
+agents/plans/        Roadmap và implementation notes
+docs/                Preview và verification notes
 ```
 
-## Xử lý sự cố
+## Định hướng bảo trì
 
-- **Ứng dụng không khởi động khi chạy `tauri dev`:** kiểm tra Node.js, Rust và các prerequisite native của Tauri đã được cài đặt.
-- **Terminal không chạy được lệnh:** kiểm tra shell và công cụ cần dùng có trong `PATH`; trên Windows, mở lại terminal sau khi thay đổi environment variables.
-- **Không có kết quả tìm kiếm:** kiểm tra `rg --version`, scope tìm kiếm và quyền đọc của workspace.
-- **Git panel không hiển thị repository:** mở đúng thư mục chứa repository hoặc kiểm tra `git status` trong terminal.
-- **Không build được installer:** chạy `npm run build` và `cargo check --manifest-path src-tauri/Cargo.toml` để tách lỗi frontend khỏi lỗi native/toolchain.
-
-## Đóng góp
-
-Trước khi tạo pull request, hãy chạy các kiểm tra liên quan:
-
-```bash
-npm run build
-cargo fmt --check --manifest-path src-tauri/Cargo.toml
-cargo check --manifest-path src-tauri/Cargo.toml
-cargo test --manifest-path src-tauri/Cargo.toml
-```
-
-Khi thay đổi hành vi file, terminal, Git hoặc process, cần bổ sung kiểm thử cho các trường hợp lỗi, huỷ thao tác, workspace switch và thay đổi ngoài ứng dụng.
-
-## License
-
-Repository hiện chưa công bố license open-source. Hãy liên hệ chủ project trước khi phân phối hoặc sử dụng lại mã nguồn ngoài phạm vi được cho phép.
+Feature mới chỉ nên được thêm khi giải quyết một nhu cầu lặp lại trong workflow thực tế. Ưu tiên hiện tại là bug fixes, native acceptance, UX rõ ràng, drag-and-drop, filesystem safety và độ ổn định của terminal/editor/Git.

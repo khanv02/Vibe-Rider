@@ -251,6 +251,6 @@ Nghiệm thu cần status/diff/selected mutations/commit đúng fixture; Push UI
 
 Phase 7 nhận Git để dogfooding sửa → Save → build/test → review → stage → commit, rồi push khi upstream có sẵn. Phần UX độc lập theo plan Phase 7 có thể chuẩn bị song song; 7.5/toàn bộ nghiệm thu UX chờ Git đạt.
 
-Phase 9 reuse status/diff read-only DTOs/limits, không cấp add/restore/commit/push vào read-only registry. AI write/approval và command execution vẫn thuộc Phase 10.
+Các read-only DTO/limits của Search và Git chỉ phục vụ IDE core. Không tạo registry agent, AI write layer hoặc command execution workflow mới; add/restore/commit/push vẫn thuộc Git UI với confirmation hiện có.
 
 Concept cần hiểu sau phase: HEAD/index/disk/draft, porcelain parsing, literal paths, process ownership/bounded I/O, confirmation theo revision và lỗi/cancel không đồng nghĩa rollback. Các concept này áp dụng cho desktop integrations gọi CLI và UI review dữ liệu thay đổi ngoài app.
