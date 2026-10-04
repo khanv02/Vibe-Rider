@@ -355,8 +355,7 @@ cargo test --manifest-path src-tauri/Cargo.toml --offline
 Các thay đổi ảnh hưởng terminal, workspace, filesystem, Editor hoặc Git nên có native verification trên Windows; build pass riêng không thay thế kiểm tra ứng dụng thật.
 
 ## Giấy phép
-
-Repository hiện chưa khai báo file license riêng. Hãy bổ sung license trước khi phân phối hoặc sử dụng trong dự án thương mại.
+Không có, đừng dùng cho mục đích thương mại. Vibe Rider là một dự án cá nhân, không có giấy phép open source. Bạn có thể fork và customize cho mục đích cá nhân, học tập hoặc nghiên cứu, nhưng không được dùng cho thương mại hoặc phân phối lại.
 
 ---
 
