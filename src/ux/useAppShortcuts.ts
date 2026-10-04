@@ -47,7 +47,7 @@ export function useAppShortcuts(actions: AppShortcutActions): void {
       }
 
       if (ctrl && alt && !event.shiftKey && !textContext) {
-        const panelByKey: Record<string, RightPanelId> = { g: "git", e: "explorer", m: "editor" };
+        const panelByKey: Record<string, RightPanelId> = { g: "git", e: "explorer", m: "editor", a: "activity" };
         const panel = panelByKey[key];
         if (panel) {
           event.preventDefault();

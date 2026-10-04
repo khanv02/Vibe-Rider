@@ -18,6 +18,18 @@ export function writeFile(
   });
 }
 
+export function restoreFile(
+  workspaceId: string,
+  relativePath: string,
+  content: string,
+  eol: TextFileSnapshot["eol"],
+  bom: boolean,
+): Promise<WriteFileResult> {
+  return invoke<WriteFileResult>("restore_file", {
+    request: { workspaceId, relativePath, content, eol, bom },
+  });
+}
+
 export function formatEditorError(error: unknown): string {
   if (typeof error === "object" && error !== null && "message" in error) {
     const message = (error as { message?: unknown }).message;

@@ -29,7 +29,7 @@ impl Drop for Handle {
     }
 }
 
-pub(super) struct ProcessTree {
+pub(crate) struct ProcessTree {
     job: Handle,
 }
 
@@ -39,7 +39,7 @@ unsafe impl Send for ProcessTree {}
 unsafe impl Sync for ProcessTree {}
 
 impl ProcessTree {
-    pub(super) fn spawn(command: &mut Command) -> io::Result<(Child, Arc<Self>)> {
+    pub(crate) fn spawn(command: &mut Command) -> io::Result<(Child, Arc<Self>)> {
         // SAFETY: null security/name creates a private, non-inherited job.
         let job = unsafe { CreateJobObjectW(std::ptr::null(), std::ptr::null()) };
         if job.is_null() {
@@ -78,7 +78,7 @@ impl ProcessTree {
         Ok((child, tree))
     }
 
-    pub(super) fn terminate(&self) {
+    pub(crate) fn terminate(&self) {
         // SAFETY: job remains owned by self; termination is idempotent.
         unsafe {
             TerminateJobObject(self.job.0, 1);

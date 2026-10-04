@@ -1,8 +1,13 @@
 import type { RightPanelId, RightPanelState } from "../panels/types";
 import type { TerminalLayoutMode, TerminalPaneId } from "../terminal/types";
 
+export type CloseConfirmMode = "always" | "when-needed" | "never";
+export type UiTheme = "dark" | "light";
+
 export interface UiPreferences {
   version: 1;
+  theme: UiTheme;
+  closeMode: CloseConfirmMode;
   terminal: {
     layoutMode: TerminalLayoutMode;
     activePaneId: TerminalPaneId;
@@ -14,6 +19,7 @@ export interface UiPreferences {
     normalWidth: number;
     editorSize: "normal" | "expanded";
     expandedWidth: number | null;
+    keepExpandedOnSwitch: boolean;
     side: "left" | "right";
   };
 }
@@ -31,6 +37,8 @@ export interface PreferencesSnapshot {
 
 export const DEFAULT_UI_PREFERENCES: UiPreferences = {
   version: 1,
+  theme: "dark",
+  closeMode: "always",
   terminal: {
     layoutMode: 4,
     activePaneId: "T1",
@@ -42,6 +50,7 @@ export const DEFAULT_UI_PREFERENCES: UiPreferences = {
     normalWidth: 304,
     editorSize: "normal",
     expandedWidth: null,
+    keepExpandedOnSwitch: true,
     side: "right",
   },
 };
@@ -53,6 +62,7 @@ export function preferencesFromPanel(state: RightPanelState): UiPreferences["pan
     normalWidth: state.rightPanelWidth,
     editorSize: state.editorSize,
     expandedWidth: state.editorExpandedWidth,
+    keepExpandedOnSwitch: state.keepExpandedOnSwitch,
     side: state.side,
   };
 }

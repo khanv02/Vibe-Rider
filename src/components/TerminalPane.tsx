@@ -18,8 +18,11 @@ import type {
   TerminalViewState,
 } from "../terminal/types";
 import type { WorkspaceDescriptor } from "../workspace/types";
+import { saveClipboardImage } from "../workspace/workspaceApi";
+import type { UiTheme } from "../preferences/types";
 
 interface TerminalPaneProps {
+  theme: UiTheme;
   active: boolean;
   autoStart?: boolean;
   onFocus: () => void;
@@ -30,6 +33,7 @@ interface TerminalPaneProps {
 }
 
 export function TerminalPane({
+  theme,
   active,
   autoStart = false,
   onFocus,
@@ -82,25 +86,36 @@ export function TerminalPane({
       fontFamily: '"Cascadia Mono", "SFMono-Regular", Consolas, monospace',
       fontSize: 12,
       scrollback: 5000,
-      theme: { background: "#0d1117", foreground: "#d4dce7", cursor: "#91e1c3" },
+      theme: terminalTheme(theme),
     });
     const fit = new FitAddon();
     terminal.loadAddon(fit);
     terminal.open(hostRef.current);
+    if (terminal.textarea) {
+      const inputId = `terminal-input-${paneId.toLowerCase()}`;
+      terminal.textarea.id = inputId;
+      terminal.textarea.name = inputId;
+      terminal.textarea.setAttribute("autocomplete", "off");
+    }
     fitRef.current = fit;
     terminalRef.current = terminal;
 
-    const inputDisposable = terminal.onData((data) => {
-      const activeSession = sessionRef.current;
-      const activeWorkspace = workspaceRef.current;
-      if (!activeSession || !activeWorkspace) return;
+    function queueInput(
+      data: string,
+      targetWorkspace = workspaceRef.current,
+      targetSession = sessionRef.current,
+      operation = operationRef.current,
+    ) {
+      if (!targetSession || !targetWorkspace) return;
       const bytes = new TextEncoder().encode(data);
-      const operation = operationRef.current;
       inputQueueRef.current = inputQueueRef.current
         .catch(() => undefined)
         .then(() => {
-          if (operation !== operationRef.current) return;
-          return writeTerminal(activeWorkspace.id, activeSession.sessionId, bytes);
+          if (
+            operation !== operationRef.current
+            || sessionRef.current?.sessionId !== targetSession.sessionId
+          ) return;
+          return writeTerminal(targetWorkspace.id, targetSession.sessionId, bytes);
         })
         .catch((writeError: unknown) => {
           if (operation !== operationRef.current) return;
@@ -108,6 +123,96 @@ export function TerminalPane({
           setError(message);
           publishState("error", message, sessionRef.current);
         });
+    }
+
+    const inputDisposable = terminal.onData((data) => queueInput(data));
+    let imagePasteInFlight = false;
+
+    async function readClipboardImage(): Promise<{ blob: Blob; mimeType: string } | null> {
+      if (!navigator.clipboard?.read) return null;
+      const clipboardItems = await navigator.clipboard.read();
+      for (const clipboardItem of clipboardItems) {
+        const mimeType = clipboardItem.types.find((type) => type.toLowerCase().startsWith("image/"));
+        if (!mimeType) continue;
+        return { blob: await clipboardItem.getType(mimeType), mimeType };
+      }
+      return null;
+    }
+
+    async function pasteImage(blob: Blob, mimeType: string) {
+      const targetSession = sessionRef.current;
+      const targetWorkspace = workspaceRef.current;
+      if (!targetSession || !targetWorkspace || imagePasteInFlight) return;
+      imagePasteInFlight = true;
+      const operation = operationRef.current;
+      try {
+        const bytes = new Uint8Array(await blob.arrayBuffer());
+        const saved = await saveClipboardImage(targetWorkspace.id, mimeType, bytes);
+        if (
+          operation !== operationRef.current
+          || sessionRef.current?.sessionId !== targetSession.sessionId
+        ) return;
+        setError(null);
+        queueInput(
+          quotePowerShellPath(saved.absolutePath),
+          targetWorkspace,
+          targetSession,
+          operation,
+        );
+      } catch (pasteError: unknown) {
+        if (operation === operationRef.current) {
+          setError(`Cannot paste clipboard image: ${formatTerminalError(pasteError)}`);
+        }
+      } finally {
+        imagePasteInFlight = false;
+      }
+    }
+
+    const pasteHandler = (event: ClipboardEvent) => {
+      const clipboardData = event.clipboardData;
+      if (!clipboardData) return;
+      const imageItem = Array.from(clipboardData.items)
+        .find((item) => item.type.toLowerCase().startsWith("image/"));
+      const html = clipboardData.getData("text/html");
+      const hasImageHint = Boolean(imageItem)
+        || Array.from(clipboardData.types).some((type) => type.toLowerCase().startsWith("image/"))
+        || /<img[\s>]|data:image\//i.test(html);
+      if (!hasImageHint) return;
+
+      event.preventDefault();
+      event.stopPropagation();
+      const image = imageItem?.getAsFile();
+      if (image) {
+        void pasteImage(image, image.type || imageItem?.type || "image/png");
+        return;
+      }
+      void readClipboardImage()
+        .then((clipboardImage) => {
+          if (clipboardImage) void pasteImage(clipboardImage.blob, clipboardImage.mimeType);
+          else setError("Cannot read an image from the clipboard.");
+        })
+        .catch((pasteError: unknown) => {
+          setError(`Cannot read clipboard image: ${formatTerminalError(pasteError)}`);
+        });
+    };
+    hostRef.current.addEventListener("paste", pasteHandler, true);
+    terminal.textarea?.addEventListener("paste", pasteHandler, true);
+    terminal.attachCustomKeyEventHandler((event) => {
+      if (
+        event.type === "keydown"
+        && (event.ctrlKey || event.metaKey)
+        && event.key.toLowerCase() === "v"
+      ) {
+        window.setTimeout(() => {
+          if (imagePasteInFlight) return;
+          void readClipboardImage()
+            .then((clipboardImage) => {
+              if (clipboardImage) void pasteImage(clipboardImage.blob, clipboardImage.mimeType);
+            })
+            .catch(() => undefined);
+        }, 0);
+      }
+      return true;
     });
 
     const observer = new ResizeObserver(() => {
@@ -142,6 +247,8 @@ export function TerminalPane({
       observer.disconnect();
       if (resizeFrameRef.current !== null) cancelAnimationFrame(resizeFrameRef.current);
       inputDisposable.dispose();
+      hostRef.current?.removeEventListener("paste", pasteHandler, true);
+      terminal.textarea?.removeEventListener("paste", pasteHandler, true);
       terminal.dispose();
       terminalRef.current = null;
       fitRef.current = null;
@@ -149,6 +256,10 @@ export function TerminalPane({
     // The pane owns one xterm instance for its entire lifetime.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (terminalRef.current) terminalRef.current.options.theme = terminalTheme(theme);
+  }, [theme]);
 
   useEffect(() => {
     if (!visible) return;
@@ -350,4 +461,14 @@ export function TerminalPane({
       </div>
     </article>
   );
+}
+
+function terminalTheme(theme: UiTheme) {
+  return theme === "light"
+    ? { background: "#f8fbfd", foreground: "#25313d", cursor: "#087f66", selectionBackground: "#cceee2" }
+    : { background: "#0d1117", foreground: "#d4dce7", cursor: "#91e1c3", selectionBackground: "#24433b" };
+}
+
+function quotePowerShellPath(path: string): string {
+  return `'${path.replaceAll("'", "''")}'`;
 }

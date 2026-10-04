@@ -1,4 +1,4 @@
-export type RightPanelId = "git" | "explorer" | "editor";
+export type RightPanelId = "git" | "explorer" | "editor" | "activity";
 
 export type EditorPanelSize = "normal" | "expanded";
 export type RightPanelSide = "left" | "right";
@@ -9,6 +9,7 @@ export interface RightPanelState {
   rightPanelWidth: number;
   editorSize: EditorPanelSize;
   editorExpandedWidth: number | null;
+  keepExpandedOnSwitch: boolean;
   side: RightPanelSide;
 }
 

@@ -5,7 +5,7 @@ mod status;
 #[cfg(test)]
 mod tests;
 #[cfg(windows)]
-mod windows;
+pub(crate) mod windows;
 
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -378,5 +378,5 @@ pub fn git_cancel(
 
 pub use operations::{
     git_add, git_commit, git_create_branch, git_diff, git_push, git_restore, git_status,
-    git_switch_branch,
+    git_switch_branch, GitDiffRequest, GitStatusRequest,
 };

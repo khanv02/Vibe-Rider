@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use tauri::State;
 
-use crate::path_guard::resolve_regular_file;
+use crate::path_guard::{is_within, resolve_regular_file, validate_relative_path};
 use crate::workspace::{WorkspaceError, WorkspaceState};
 
 const MAX_FILE_BYTES: usize = 2 * 1024 * 1024;
@@ -16,8 +16,8 @@ static NEXT_TEMP_FILE: AtomicU64 = AtomicU64::new(0);
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ReadFileRequest {
-    workspace_id: String,
-    relative_path: String,
+    pub workspace_id: String,
+    pub relative_path: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -27,6 +27,16 @@ pub struct WriteFileRequest {
     relative_path: String,
     expected_revision: String,
     content: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RestoreFileRequest {
+    workspace_id: String,
+    relative_path: String,
+    content: String,
+    eol: String,
+    bom: bool,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -110,6 +120,41 @@ pub async fn write_file(
     Ok(result)
 }
 
+#[tauri::command]
+pub async fn restore_file(
+    state: State<'_, WorkspaceState>,
+    request: RestoreFileRequest,
+) -> Result<WriteFileResult, WorkspaceError> {
+    let lease = state.begin_mutation(&request.workspace_id)?;
+    let snapshot = lease.snapshot.clone();
+    let workspace_id = request.workspace_id.clone();
+    let relative_path = request.relative_path.clone();
+    let content = request.content.clone();
+    let eol = request.eol.clone();
+    let bom = request.bom;
+    let result = tauri::async_runtime::spawn_blocking(move || {
+        let _lease = lease;
+        restore_file_to_disk(
+            &workspace_id,
+            &snapshot.root,
+            &relative_path,
+            &content,
+            &eol,
+            bom,
+        )
+    })
+    .await
+    .map_err(|error| {
+        WorkspaceError::new(
+            "IO_ERROR",
+            format!("File restore worker kết thúc ngoài dự kiến: {error}"),
+        )
+    })??;
+
+    ensure_active(&state, &result.workspace_id)?;
+    Ok(result)
+}
+
 fn active_workspace(
     state: &WorkspaceState,
     workspace_id: &str,
@@ -140,12 +185,19 @@ fn ensure_active(state: &WorkspaceState, workspace_id: &str) -> Result<(), Works
     }
 }
 
-fn read_file_from_disk(
+pub(crate) fn read_file_from_disk(
     workspace_id: &str,
     root: &Path,
     relative_path: &str,
 ) -> Result<TextFileSnapshot, WorkspaceError> {
     let (path, normalized_path) = resolve_regular_file(root, relative_path)?;
+    let metadata = fs::metadata(&path).map_err(|error| map_io_error("đọc metadata file", error))?;
+    if metadata.len() > MAX_FILE_BYTES as u64 {
+        return Err(WorkspaceError::new(
+            "FILE_TOO_LARGE",
+            format!("File vượt quá giới hạn {MAX_FILE_BYTES} bytes."),
+        ));
+    }
     let bytes = fs::read(&path).map_err(|error| map_io_error("đọc file", error))?;
     if bytes.len() > MAX_FILE_BYTES {
         return Err(WorkspaceError::new(
@@ -229,7 +281,7 @@ fn snapshot(
     }
 }
 
-fn write_file_to_disk(
+pub(crate) fn write_file_to_disk(
     workspace_id: &str,
     root: &Path,
     relative_path: &str,
@@ -302,6 +354,78 @@ fn write_file_to_disk(
         relative_path: normalized_path,
         revision: revision(relative_path, &committed),
         byte_length: committed.len(),
+    })
+}
+
+fn restore_file_to_disk(
+    workspace_id: &str,
+    root: &Path,
+    relative_path: &str,
+    content: &str,
+    eol: &str,
+    bom: bool,
+) -> Result<WriteFileResult, WorkspaceError> {
+    let relative = validate_relative_path(relative_path)?;
+    let normalized_path = relative
+        .components()
+        .map(|component| {
+            component
+                .as_os_str()
+                .to_str()
+                .map(ToOwned::to_owned)
+                .ok_or_else(|| {
+                    WorkspaceError::new(
+                        "UNSUPPORTED_PATH_ENCODING",
+                        "File path không thể biểu diễn bằng Unicode.",
+                    )
+                })
+        })
+        .collect::<Result<Vec<_>, _>>()?
+        .join("/");
+    let path = root.join(&relative);
+    if path.exists() {
+        return Err(WorkspaceError::new(
+            "FILE_EXISTS",
+            "File đã tồn tại; không thể phục hồi đè lên thay đổi mới.",
+        ));
+    }
+    let parent = path.parent().ok_or_else(|| {
+        WorkspaceError::new("IO_ERROR", "Không tìm thấy parent directory của file.")
+    })?;
+    let canonical_root =
+        fs::canonicalize(root).map_err(|error| map_io_error("xác thực workspace", error))?;
+    let canonical_parent = fs::canonicalize(parent)
+        .map_err(|error| map_io_error("xác thực parent directory", error))?;
+    if !is_within(&canonical_root, &canonical_parent) {
+        return Err(WorkspaceError::new(
+            "OUTSIDE_WORKSPACE",
+            "File nằm ngoài workspace hiện tại.",
+        ));
+    }
+
+    let encoded = encode_content(content, bom, eol)?;
+    if encoded.len() > MAX_FILE_BYTES {
+        return Err(WorkspaceError::new(
+            "FILE_TOO_LARGE",
+            format!("Nội dung sau encode vượt quá giới hạn {MAX_FILE_BYTES} bytes."),
+        ));
+    }
+    let mut options = OpenOptions::new();
+    options.write(true).create_new(true);
+    let mut file = options
+        .open(&path)
+        .map_err(|error| map_io_error("tạo lại file", error))?;
+    file.write_all(&encoded)
+        .map_err(|error| map_io_error("ghi lại file", error))?;
+    file.sync_all()
+        .map_err(|error| map_io_error("sync file phục hồi", error))?;
+
+    Ok(WriteFileResult {
+        workspace_id: workspace_id.to_owned(),
+        file_id: normalized_path.clone(),
+        relative_path: normalized_path,
+        revision: revision(relative_path, &encoded),
+        byte_length: encoded.len(),
     })
 }
 

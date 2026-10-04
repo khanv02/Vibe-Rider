@@ -1,9 +1,11 @@
 import { forwardRef, useImperativeHandle } from "react";
 import { TERMINAL_PANE_IDS, type TerminalLayoutMode, type TerminalPaneId, type TerminalPaneState } from "../terminal/types";
 import type { WorkspaceDescriptor } from "../workspace/types";
+import type { UiTheme } from "../preferences/types";
 import { TerminalPane } from "./TerminalPane";
 
 interface TerminalWorkspaceProps {
+  theme: UiTheme;
   activePaneId: TerminalPaneId;
   autoStartPaneId?: TerminalPaneId | null;
   layoutMode: TerminalLayoutMode;
@@ -28,6 +30,7 @@ const nextPane: Record<TerminalPaneId, TerminalPaneId> = {
 };
 
 export const TerminalWorkspace = forwardRef<TerminalWorkspaceHandle, TerminalWorkspaceProps>(function TerminalWorkspace({
+  theme,
   activePaneId,
   autoStartPaneId = null,
   layoutMode,
@@ -104,6 +107,7 @@ export const TerminalWorkspace = forwardRef<TerminalWorkspaceHandle, TerminalWor
             onFocus={() => selectPane(paneId)}
             onStateChange={onPaneStateChange}
             paneId={paneId}
+            theme={theme}
             visible={visiblePaneIds.includes(paneId)}
             workspace={workspace}
           />

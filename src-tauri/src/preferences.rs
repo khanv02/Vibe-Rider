@@ -20,6 +20,10 @@ pub struct PreferencesState {
 #[serde(rename_all = "camelCase")]
 pub struct UiPreferences {
     pub version: u8,
+    #[serde(default = "default_theme")]
+    pub theme: String,
+    #[serde(default = "default_close_mode")]
+    pub close_mode: String,
     pub terminal: TerminalPreferences,
     pub panel: PanelPreferences,
 }
@@ -40,12 +44,26 @@ pub struct PanelPreferences {
     pub normal_width: f64,
     pub editor_size: String,
     pub expanded_width: Option<f64>,
+    #[serde(default = "default_keep_expanded_on_switch")]
+    pub keep_expanded_on_switch: bool,
     #[serde(default = "default_panel_side")]
     pub side: String,
 }
 
+fn default_keep_expanded_on_switch() -> bool {
+    true
+}
+
 fn default_panel_side() -> String {
     "right".to_string()
+}
+
+fn default_close_mode() -> String {
+    "always".to_string()
+}
+
+fn default_theme() -> String {
+    "dark".to_string()
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -79,6 +97,8 @@ pub struct RememberedWorkspaceInput {
 fn defaults() -> UiPreferences {
     UiPreferences {
         version: SETTINGS_VERSION,
+        theme: default_theme(),
+        close_mode: default_close_mode(),
         terminal: TerminalPreferences {
             layout_mode: 4,
             active_pane_id: "T1".to_string(),
@@ -90,6 +110,7 @@ fn defaults() -> UiPreferences {
             normal_width: 304.0,
             editor_size: "normal".to_string(),
             expanded_width: None,
+            keep_expanded_on_switch: default_keep_expanded_on_switch(),
             side: default_panel_side(),
         },
     }
@@ -114,13 +135,18 @@ fn validate_ui(mut value: UiPreferences) -> Result<UiPreferences, WorkspaceError
         ));
     }
     if !matches!(value.terminal.layout_mode, 1 | 2 | 4)
+        || !matches!(value.theme.as_str(), "dark" | "light")
+        || !matches!(
+            value.close_mode.as_str(),
+            "always" | "when-needed" | "never"
+        )
         || !validate_pane(&value.terminal.active_pane_id)
         || !validate_pane(&value.terminal.visible_pair[0])
         || !validate_pane(&value.terminal.visible_pair[1])
         || value.terminal.visible_pair[0] == value.terminal.visible_pair[1]
         || !matches!(
             value.panel.active_tool.as_str(),
-            "git" | "explorer" | "editor"
+            "git" | "explorer" | "editor" | "activity"
         )
         || !matches!(value.panel.editor_size.as_str(), "normal" | "expanded")
         || !matches!(value.panel.side.as_str(), "left" | "right")

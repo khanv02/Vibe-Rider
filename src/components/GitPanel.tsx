@@ -1,17 +1,21 @@
-import { useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent, type MouseEvent } from "react";
 import type { EditorPanelSize } from "../panels/types";
 import type { WorkspaceDescriptor } from "../workspace/types";
 import type { GitStatusEntry } from "../git/types";
 import { isTauriRuntime } from "../git/gitApi";
 import type { WorkspaceGitController } from "../git/useWorkspaceGit";
+import { gitFileTone } from "../git/statusTone";
 import { SharedDiffViewer } from "./SharedDiffViewer";
+import type { UiTheme } from "../preferences/types";
 
 interface GitPanelProps {
+  theme: UiTheme;
   controller: WorkspaceGitController;
   expanded: boolean;
   onExpandedChange: (size: EditorPanelSize) => void;
   workspace: WorkspaceDescriptor | null;
   onOpenFile: (relativePath: string) => void;
+  pendingFilePaths: string[];
 }
 
 interface UpstreamTarget {
@@ -21,6 +25,14 @@ interface UpstreamTarget {
 }
 
 type GitGroupsLayout = "stacked" | "columns";
+type GitContextAction = "addBranch" | "open" | "unstage" | "stage" | "review" | "select" | "unselect";
+
+interface GitContextMenuState {
+  x: number;
+  y: number;
+  entry: GitStatusEntry;
+  scope: "staged" | "unstaged";
+}
 
 function parseUpstream(value: string | null): UpstreamTarget | null {
   if (!value) return null;
@@ -41,16 +53,83 @@ function canUnstageEntry(entry: GitStatusEntry): boolean {
   return !entry.conflict && entry.staged;
 }
 
-export function GitPanel({ controller, expanded, onExpandedChange, onOpenFile, workspace }: GitPanelProps) {
+export function GitPanel({ theme, controller, expanded, onExpandedChange, onOpenFile, pendingFilePaths, workspace }: GitPanelProps) {
   const [groupsLayout, setGroupsLayout] = useState<GitGroupsLayout>("stacked");
   const [newBranchName, setNewBranchName] = useState("");
+  const [contextMenu, setContextMenu] = useState<GitContextMenuState | null>(null);
+  const contextMenuRef = useRef<HTMLDivElement | null>(null);
   const { status } = controller;
+
+  useEffect(() => {
+    if (!contextMenu) return;
+    const closeMenu = (event: PointerEvent) => {
+      const target = event.target;
+      if (target instanceof Node && contextMenuRef.current?.contains(target)) return;
+      setContextMenu(null);
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setContextMenu(null);
+    };
+    window.addEventListener("pointerdown", closeMenu);
+    window.addEventListener("keydown", closeOnEscape);
+    return () => {
+      window.removeEventListener("pointerdown", closeMenu);
+      window.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [contextMenu]);
+
+  function openGitContextMenu(event: MouseEvent, entry: GitStatusEntry, scope: "staged" | "unstaged") {
+    event.preventDefault();
+    event.stopPropagation();
+    const menuWidth = 184;
+    const menuHeight = 246;
+    setContextMenu({
+      x: Math.min(event.clientX, Math.max(8, window.innerWidth - menuWidth - 8)),
+      y: Math.min(event.clientY, Math.max(8, window.innerHeight - menuHeight - 8)),
+      entry,
+      scope,
+    });
+  }
+
+  function handleContextAction(action: GitContextAction) {
+    const target = contextMenu;
+    if (!target) return;
+    setContextMenu(null);
+
+    switch (action) {
+      case "addBranch": {
+        const branchName = window.prompt("Add branch from the current HEAD:", "feature/my-branch");
+        if (branchName?.trim()) void controller.createBranch(branchName.trim());
+        return;
+      }
+      case "open":
+        if (target.entry.indexStatus !== "D" && target.entry.worktreeStatus !== "D") {
+          onOpenFile(target.entry.currentPath);
+        }
+        return;
+      case "unstage":
+        if (canUnstageEntry(target.entry)) void controller.unstageEntries([target.entry.entryId]);
+        return;
+      case "stage":
+        if (canStageEntry(target.entry)) void controller.stageEntries([target.entry.entryId]);
+        return;
+      case "review":
+        void controller.review(target.entry, target.scope);
+        return;
+      case "select":
+        if (!controller.selectedIds.includes(target.entry.entryId)) controller.toggleSelected(target.entry.entryId);
+        return;
+      case "unselect":
+        if (controller.selectedIds.includes(target.entry.entryId)) controller.toggleSelected(target.entry.entryId);
+        return;
+    }
+  }
   if (!workspace) {
     return (
       <div className="tool-placeholder">
         <div className="tool-placeholder-icon" aria-hidden="true">⌘</div>
-        <h3>Chưa mở workspace</h3>
-        <p>Mở một folder local để Git kiểm tra repository ở đúng workspace root.</p>
+        <h3>No workspace open</h3>
+        <p>Open a local folder so Git can inspect the repository at the workspace root.</p>
       </div>
     );
   }
@@ -66,7 +145,7 @@ export function GitPanel({ controller, expanded, onExpandedChange, onOpenFile, w
     );
   }
 
-  if (!status && controller.loading) return <div className="git-state">Đang đọc Git status…</div>;
+  if (!status && controller.loading) return <div className="git-state">Reading Git status…</div>;
 
   const staged = status?.entries.filter((entry) => entry.staged) ?? [];
   const changes = status?.entries.filter((entry) => entry.unstaged && !entry.untracked) ?? [];
@@ -80,7 +159,7 @@ export function GitPanel({ controller, expanded, onExpandedChange, onOpenFile, w
   const upstreamTarget = parseUpstream(status?.branch.upstream ?? null);
   const hasUpstream = Boolean(status?.branch.head && upstreamTarget && !status.branch.detached);
   const remoteProvider = status?.remote?.provider;
-  const remoteLabel = remoteProvider ? `${status?.remote?.host ?? "Remote"} · auth checked on Push` : "No remote detected";
+  const remoteLabel = remoteProvider ? `${status?.remote?.host ?? "Remote"}` : "No remote detected";
 
   function handleCreateBranch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -139,6 +218,13 @@ export function GitPanel({ controller, expanded, onExpandedChange, onOpenFile, w
           </div>
         </div>
       ) : null}
+      {pendingFilePaths.length > 0 ? (
+        <div className="git-undo-notice" role="status">
+          <span className="panel-kicker">UNDO</span>
+          <span className="git-pending-path">{pendingFilePaths.join(", ")}</span>
+          <kbd>Ctrl+Z</kbd>
+        </div>
+      ) : null}
       {controller.operation ? <div className="git-operation"><span>Running: {controller.operation.operation}{controller.operation.cancellationRequested ? " (cancelling…)" : ""}</span><button className="editor-quiet-button" disabled={controller.operation.cancellationRequested} onClick={() => void controller.cancel()} type="button">Cancel</button></div> : null}
       {status ? (
         <>
@@ -156,6 +242,8 @@ export function GitPanel({ controller, expanded, onExpandedChange, onOpenFile, w
                 <select
                   aria-label="Switch branch"
                   disabled={controller.busy || status.localBranches.length === 0}
+                  id="git-branch-switcher"
+                  name="branch"
                   onChange={(event) => {
                     if (event.target.value && event.target.value !== status.branch.head) {
                       void controller.switchBranch(event.target.value);
@@ -172,6 +260,7 @@ export function GitPanel({ controller, expanded, onExpandedChange, onOpenFile, w
                 <div>
                   <input
                     id="git-new-branch"
+                    name="newBranchName"
                     maxLength={255}
                     onChange={(event) => setNewBranchName(event.target.value)}
                     placeholder="feature/my-branch"
@@ -199,8 +288,8 @@ export function GitPanel({ controller, expanded, onExpandedChange, onOpenFile, w
             ) : null}
             <p className="git-branch-note">
               {status.entries.length > 0
-                ? "Switch branch yêu cầu working tree sạch; hãy commit hoặc stash thay đổi trước."
-                : "Branch mới được tạo từ commit hiện tại."
+                ? "Switching branches requires a clean working tree; commit or stash changes first."
+                : "The new branch was created from the current commit."
               }
             </p>
           </section>
@@ -212,17 +301,10 @@ export function GitPanel({ controller, expanded, onExpandedChange, onOpenFile, w
           <div className="git-actions">
             <button className="primary-button" disabled={controller.busy || !canStageSelection} onClick={() => void controller.stage()} title={canStageSelection ? "Stage selected files from disk" : "Select unstaged or untracked files only"} type="button">Stage selected</button>
             <button className="editor-quiet-button" disabled={controller.busy || !canUnstageSelection} onClick={() => void controller.unstage()} title={canUnstageSelection ? "Keep disk content and remove selected files from the index" : "Select staged files only"} type="button">Unstage</button>
-            <details className="git-options">
-              <summary>Optional actions</summary>
-              <div className="git-options-menu">
-                <button className="editor-quiet-button" disabled={controller.busy || !canRestoreSelection} onClick={() => void controller.restore()} title={canRestoreSelection ? "Restore tracked disk content from the index" : "Restore only tracked regular files with unstaged changes"} type="button">Restore working tree</button>
-                {controller.selectedIds.length > 0 ? <button className="editor-quiet-button" onClick={controller.clearSelection} type="button">Clear selection</button> : null}
-                <button className="editor-quiet-button" disabled={controller.loading || controller.busy} onClick={() => void controller.refresh()} type="button">Refresh status</button>
-              </div>
-              <p>Restore bỏ thay đổi đã lưu trên disk về nội dung trong Index; untracked, rename và conflict không được phép.</p>
-            </details>
+            <button className="editor-quiet-button" disabled={controller.busy || !canRestoreSelection} onClick={() => void controller.restore()} title={canRestoreSelection ? "Restore tracked disk content from the index" : "Select tracked regular files with unstaged changes only"} type="button">Restore</button>
+            {controller.selectedIds.length > 0 ? <button className="editor-quiet-button" onClick={controller.clearSelection} type="button">Clear selection</button> : null}
           </div>
-          <p className="git-selection-note">{controller.selectedIds.length === 0 ? "Chọn file để bật action phù hợp." : `${controller.selectedIds.length} file selected · action chỉ áp dụng cho đúng trạng thái đã chọn.`}</p>
+          <p className="git-selection-note">{controller.selectedIds.length === 0 ? "Select files to enable the appropriate actions." : `${controller.selectedIds.length} file(s) selected · actions apply only to compatible states.`}</p>
           <p className="git-disk-note">Git actions use saved disk bytes. Save an editor draft before Stage if it should be included.</p>
 
           {controller.diff ? (
@@ -237,7 +319,7 @@ export function GitPanel({ controller, expanded, onExpandedChange, onOpenFile, w
               {controller.diff.binary || controller.diff.unsupportedReason ? (
                 <div className="git-diff-unsupported" role="status">
                   <strong>{controller.diff.relativePath}</strong>
-                  <span>{controller.diff.unsupportedReason ?? "Binary diff chỉ hiển thị metadata."}</span>
+                  <span>{controller.diff.unsupportedReason ?? "Binary diff metadata only."}</span>
                   <button className="editor-quiet-button" onClick={controller.closeDiff} type="button">Close</button>
                 </div>
               ) : (
@@ -248,6 +330,7 @@ export function GitPanel({ controller, expanded, onExpandedChange, onOpenFile, w
                     <div><span className="panel-kicker">NEW STATE</span><strong>{controller.diff.modifiedLabel}</strong></div>
                   </div>
                   <SharedDiffViewer
+                    theme={theme}
                     onClose={controller.closeDiff}
                     preview={{
                       fileId: controller.diff.previewId,
@@ -275,15 +358,15 @@ export function GitPanel({ controller, expanded, onExpandedChange, onOpenFile, w
               </div>
             </div>
             <div className={`git-groups${groupsLayout === "columns" ? " git-groups-columns" : ""}`}>
-              <GitGroup controller={controller} entries={staged} label="Staged Changes" onOpenFile={onOpenFile} scope="staged" empty="No staged changes" />
-              <GitGroup controller={controller} entries={changes} label="Changes" onOpenFile={onOpenFile} scope="unstaged" empty="No unstaged changes" />
-              <GitGroup controller={controller} entries={untracked} label="Untracked" onOpenFile={onOpenFile} scope="unstaged" empty="No untracked files" />
+              <GitGroup controller={controller} entries={staged} label="Staged Changes" onContextMenu={openGitContextMenu} onOpenFile={onOpenFile} pendingFilePaths={pendingFilePaths} scope="staged" empty="No staged changes" />
+              <GitGroup controller={controller} entries={changes} label="Changes" onContextMenu={openGitContextMenu} onOpenFile={onOpenFile} pendingFilePaths={pendingFilePaths} scope="unstaged" empty="No unstaged changes" />
+              <GitGroup controller={controller} entries={untracked} label="Untracked" onContextMenu={openGitContextMenu} onOpenFile={onOpenFile} pendingFilePaths={pendingFilePaths} scope="unstaged" empty="No untracked files" />
             </div>
           </section>
 
           <section className="git-commit-box" aria-labelledby="git-commit-title">
             <div className="git-section-heading"><span className="panel-kicker">REVIEWED INDEX</span><h3 id="git-commit-title">Commit</h3></div>
-            <textarea aria-label="Commit message" disabled={controller.busy} onChange={(event) => controller.setCommitMessage(event.target.value)} placeholder="Commit message" value={controller.commitMessage} />
+            <textarea aria-label="Commit message" disabled={controller.busy} id="git-commit-message" name="commitMessage" onChange={(event) => controller.setCommitMessage(event.target.value)} placeholder="Commit message" value={controller.commitMessage} />
             <button className="primary-button" disabled={controller.busy || staged.length === 0 || !controller.commitMessage.trim()} onClick={() => void controller.commit()} type="button">Commit staged changes</button>
             <p className="git-form-note">{staged.length === 0 ? "Stage at least one change before committing." : !controller.commitMessage.trim() ? "Enter a commit message to enable Commit." : "Only the reviewed Index will be committed."}</p>
           </section>
@@ -318,8 +401,41 @@ export function GitPanel({ controller, expanded, onExpandedChange, onOpenFile, w
           </details>
         </>
       ) : (
-        <div className="git-state">{controller.feedback?.kind === "error" ? "Git status không khả dụng." : "Chưa có Git status."}</div>
+        <div className="git-state">{controller.feedback?.kind === "error" ? "Git status is unavailable." : "No Git status available."}</div>
       )}
+      {contextMenu ? (
+        <div
+          className="explorer-context-menu git-context-menu"
+          onContextMenu={(event) => event.preventDefault()}
+          ref={contextMenuRef}
+          role="menu"
+          style={{ left: contextMenu.x, top: contextMenu.y }}
+        >
+          <button disabled={controller.busy} onClick={() => handleContextAction("addBranch")} role="menuitem" type="button">
+            <span aria-hidden="true">＋</span> Add Branch
+          </button>
+          <div className="explorer-context-divider" />
+          <button disabled={contextMenu.entry.indexStatus === "D" || contextMenu.entry.worktreeStatus === "D"} onClick={() => handleContextAction("open")} role="menuitem" type="button">
+            <span aria-hidden="true">↗</span> Open
+          </button>
+          <button disabled={controller.busy || !canUnstageEntry(contextMenu.entry)} onClick={() => handleContextAction("unstage")} role="menuitem" type="button">
+            <span aria-hidden="true">−</span> Unstage
+          </button>
+          <button disabled={controller.busy || !canStageEntry(contextMenu.entry)} onClick={() => handleContextAction("stage")} role="menuitem" type="button">
+            <span aria-hidden="true">＋</span> Stage
+          </button>
+          <button onClick={() => handleContextAction("review")} role="menuitem" type="button">
+            <span aria-hidden="true">⌕</span> Review
+          </button>
+          <div className="explorer-context-divider" />
+          <button disabled={controller.selectedIds.includes(contextMenu.entry.entryId)} onClick={() => handleContextAction("select")} role="menuitem" type="button">
+            <span aria-hidden="true">✓</span> Select
+          </button>
+          <button disabled={!controller.selectedIds.includes(contextMenu.entry.entryId)} onClick={() => handleContextAction("unselect")} role="menuitem" type="button">
+            <span aria-hidden="true">−</span> Unselect
+          </button>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -328,14 +444,18 @@ function GitGroup({
   controller,
   entries,
   label,
+  onContextMenu,
   onOpenFile,
+  pendingFilePaths,
   scope,
   empty,
 }: {
   controller: WorkspaceGitController;
   entries: GitStatusEntry[];
   label: string;
+  onContextMenu: (event: MouseEvent, entry: GitStatusEntry, scope: "staged" | "unstaged") => void;
   onOpenFile: (relativePath: string) => void;
+  pendingFilePaths: string[];
   scope: "staged" | "unstaged";
   empty: string;
 }) {
@@ -344,18 +464,28 @@ function GitGroup({
       <div className="git-section-heading">
         <div className="git-group-title"><span className="panel-kicker">{label.toUpperCase()}</span><span>{entries.length}</span></div>
         {entries.length > 0 ? (
-          scope === "staged" ? (
-            <button className="editor-quiet-button git-group-action" disabled={controller.busy || !entries.some(canUnstageEntry)} onClick={() => void controller.unstageEntries(entries.filter(canUnstageEntry).map((entry) => entry.entryId))} type="button">Unstage all</button>
-          ) : (
-            <button className="editor-quiet-button git-group-action" disabled={controller.busy || !entries.some(canStageEntry)} onClick={() => void controller.stageEntries(entries.filter(canStageEntry).map((entry) => entry.entryId))} type="button">Stage all</button>
-          )
+          <div className="git-group-actions">
+            <button
+              className="editor-quiet-button git-group-action"
+              disabled={controller.busy}
+              onClick={() => controller.toggleEntriesSelected(entries.map((entry) => entry.entryId))}
+              type="button"
+            >
+              {entries.every((entry) => controller.selectedIds.includes(entry.entryId)) ? "Unselect all" : "Select all"}
+            </button>
+            {scope === "staged" ? (
+              <button className="editor-quiet-button git-group-action" disabled={controller.busy || !entries.some(canUnstageEntry)} onClick={() => void controller.unstageEntries(entries.filter(canUnstageEntry).map((entry) => entry.entryId))} type="button">Unstage all</button>
+            ) : (
+              <button className="editor-quiet-button git-group-action" disabled={controller.busy || !entries.some(canStageEntry)} onClick={() => void controller.stageEntries(entries.filter(canStageEntry).map((entry) => entry.entryId))} type="button">Stage all</button>
+            )}
+          </div>
         ) : null}
       </div>
       <div className="git-entry-list" id={`git-group-${label}`}>
         {entries.length === 0 ? <span className="git-empty">{empty}</span> : entries.map((entry) => (
-          <div className="git-entry" key={`${scope}-${entry.entryId}`}>
+          <div className={`git-entry git-entry-${gitFileTone(entry)}${pendingFilePaths.includes(entry.currentPath) ? " git-entry-pending" : ""}`} key={`${scope}-${entry.entryId}`} onContextMenu={(event) => onContextMenu(event, entry, scope)}>
             <label className="git-entry-select">
-              <input checked={controller.selectedIds.includes(entry.entryId)} onChange={() => controller.toggleSelected(entry.entryId)} type="checkbox" />
+              <input checked={controller.selectedIds.includes(entry.entryId)} id={`git-entry-${scope}-${entry.entryId}`} name="gitSelectedEntries" onChange={() => controller.toggleSelected(entry.entryId)} type="checkbox" />
               <span className={`git-status-letter git-status-${entry.indexStatus === "?" ? "untracked" : entry.worktreeStatus !== " " ? entry.worktreeStatus : entry.indexStatus}`}>{entry.indexStatus === "?" ? "?" : scope === "staged" ? entry.indexStatus : entry.worktreeStatus}</span>
               <span className="git-entry-path" title={entry.originalPath ? `${entry.originalPath} → ${entry.currentPath}` : entry.currentPath}>{entry.originalPath ? `${entry.originalPath} → ${entry.currentPath}` : entry.currentPath}</span>
             </label>

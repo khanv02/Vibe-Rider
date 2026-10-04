@@ -1,16 +1,20 @@
 import { useEffect, useRef } from "react";
 import * as monaco from "monaco-editor";
 import { configureMonaco } from "../editor/monacoRuntime";
+import type { EditorLocation } from "../editor/types";
+import type { UiTheme } from "../preferences/types";
 
 interface MonacoEditorProps {
+  theme: UiTheme;
   fileId: string;
   model: monaco.editor.ITextModel;
   readOnly: boolean;
   onChange: (content: string) => void;
   onSave: () => void;
+  navigation: EditorLocation | null;
 }
 
-export function MonacoEditor({ fileId, model, readOnly, onChange, onSave }: MonacoEditorProps) {
+export function MonacoEditor({ theme, fileId, model, readOnly, onChange, onSave, navigation }: MonacoEditorProps) {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
   const modelRef = useRef<monaco.editor.ITextModel | null>(null);
@@ -27,7 +31,7 @@ export function MonacoEditor({ fileId, model, readOnly, onChange, onSave }: Mona
     configureMonaco();
     const editor = monaco.editor.create(host, {
       model,
-      theme: "vibe-rider-dark",
+      theme: theme === "light" ? "vibe-rider-light" : "vibe-rider-dark",
       automaticLayout: false,
       minimap: { enabled: false },
       lineNumbers: "on",
@@ -38,6 +42,7 @@ export function MonacoEditor({ fileId, model, readOnly, onChange, onSave }: Mona
       fontSize: 12,
       tabSize: 2,
     });
+    assignEditorInputIdentifiers(host, editor.getId());
     editorRef.current = editor;
     modelRef.current = model;
     const subscription = editor.onDidChangeModelContent(() => onChangeRef.current(editor.getValue()));
@@ -57,6 +62,10 @@ export function MonacoEditor({ fileId, model, readOnly, onChange, onSave }: Mona
   }, []);
 
   useEffect(() => {
+    monaco.editor.setTheme(theme === "light" ? "vibe-rider-light" : "vibe-rider-dark");
+  }, [theme]);
+
+  useEffect(() => {
     const editor = editorRef.current;
     if (!editor || modelRef.current === model) return;
     if (modelRef.current) viewStatesRef.current.set(modelIdRef.current, editor.saveViewState());
@@ -73,5 +82,29 @@ export function MonacoEditor({ fileId, model, readOnly, onChange, onSave }: Mona
     editorRef.current?.updateOptions({ readOnly });
   }, [readOnly]);
 
+  useEffect(() => {
+    const editor = editorRef.current;
+    if (!editor || !navigation || navigation.fileId !== fileId) return;
+    const maxLine = model.getLineCount();
+    const line = Math.min(Math.max(1, navigation.line), maxLine);
+    const maxColumn = model.getLineMaxColumn(line);
+    const column = Math.min(Math.max(1, navigation.column), maxColumn);
+    const endColumn = Math.min(Math.max(column, navigation.endColumn ?? column), maxColumn);
+    editor.setPosition({ lineNumber: line, column });
+    editor.setSelection({ startLineNumber: line, startColumn: column, endLineNumber: line, endColumn });
+    editor.revealPositionInCenter({ lineNumber: line, column });
+    editor.focus();
+  }, [fileId, model, navigation]);
+
   return <div className="monaco-editor-host" ref={hostRef} aria-label={`Editor ${fileId}`} />;
+}
+
+function assignEditorInputIdentifiers(host: HTMLElement, editorId: string) {
+  const safeEditorId = editorId.replace(/[^a-zA-Z0-9_-]/g, "-");
+  host.querySelectorAll<HTMLTextAreaElement>("textarea").forEach((input, index) => {
+    const inputId = `monaco-input-${safeEditorId}-${index}`;
+    input.id = inputId;
+    input.name = inputId;
+    input.setAttribute("autocomplete", "off");
+  });
 }

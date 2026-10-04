@@ -22,6 +22,7 @@ pub struct WorkspaceState {
 struct WorkspaceActivity {
     mutation: bool,
     transition: bool,
+    command: bool,
 }
 
 // A lease records activity without keeping the workspace mutex locked while
@@ -33,6 +34,11 @@ pub(crate) struct WorkspaceMutationLease {
 
 pub(crate) struct WorkspaceTransitionLease {
     activity: Arc<Mutex<WorkspaceActivity>>,
+}
+
+pub(crate) struct WorkspaceCommandLease {
+    activity: Arc<Mutex<WorkspaceActivity>>,
+    pub snapshot: WorkspaceSnapshot,
 }
 
 impl Drop for WorkspaceMutationLease {
@@ -47,6 +53,14 @@ impl Drop for WorkspaceTransitionLease {
     fn drop(&mut self) {
         if let Ok(mut activity) = self.activity.lock() {
             activity.transition = false;
+        }
+    }
+}
+
+impl Drop for WorkspaceCommandLease {
+    fn drop(&mut self) {
+        if let Ok(mut activity) = self.activity.lock() {
+            activity.command = false;
         }
     }
 }
@@ -155,6 +169,7 @@ pub(crate) fn activate_workspace(
 
     // Revalidate activity after the picker. A busy operation must not have its
     // terminals torn down before the workspace swap is rejected.
+    state.ensure_idle()?;
     if let Some(previous) = state.active_snapshot()? {
         git.ensure_workspace_idle(&previous.id)
             .map_err(|error| WorkspaceError::new(error.code, error.message))?;
@@ -191,7 +206,7 @@ impl WorkspaceState {
                 "Không thể kiểm tra workspace activity.",
             )
         })?;
-        if activity.transition || activity.mutation {
+        if activity.transition || activity.mutation || activity.command {
             return Err(WorkspaceError::new(
                 "WORKSPACE_BUSY",
                 "Workspace đang chuyển hoặc có thao tác ghi. Hãy chờ hoặc huỷ thao tác đó.",
@@ -220,7 +235,7 @@ impl WorkspaceState {
                 "Không thể kiểm tra workspace activity.",
             )
         })?;
-        if activity.mutation || activity.transition {
+        if activity.mutation || activity.transition || activity.command {
             return Err(WorkspaceError::new(
                 "WORKSPACE_BUSY",
                 "Chờ hoặc huỷ thao tác ghi/Git đang chạy trước khi đổi workspace.",
@@ -230,6 +245,54 @@ impl WorkspaceState {
         Ok(WorkspaceTransitionLease {
             activity: Arc::clone(&self.activity),
         })
+    }
+
+    pub(crate) fn begin_command(
+        &self,
+        workspace_id: &str,
+    ) -> Result<WorkspaceCommandLease, WorkspaceError> {
+        let mut activity = self.activity.lock().map_err(|_| {
+            WorkspaceError::new(
+                "STATE_UNAVAILABLE",
+                "Không thể kiểm tra workspace activity.",
+            )
+        })?;
+        if activity.mutation || activity.transition || activity.command {
+            return Err(WorkspaceError::new(
+                "WORKSPACE_BUSY",
+                "Workspace đang bận vì một thao tác khác.",
+            ));
+        }
+        let snapshot = self
+            .active_snapshot()?
+            .ok_or_else(|| WorkspaceError::new("NO_WORKSPACE", "Hãy mở workspace trước."))?;
+        if snapshot.id != workspace_id {
+            return Err(WorkspaceError::new(
+                "STALE_WORKSPACE",
+                "Workspace đã thay đổi.",
+            ));
+        }
+        activity.command = true;
+        Ok(WorkspaceCommandLease {
+            activity: Arc::clone(&self.activity),
+            snapshot,
+        })
+    }
+
+    pub(crate) fn ensure_idle(&self) -> Result<(), WorkspaceError> {
+        let activity = self.activity.lock().map_err(|_| {
+            WorkspaceError::new(
+                "STATE_UNAVAILABLE",
+                "Không thể kiểm tra workspace activity.",
+            )
+        })?;
+        if activity.mutation || activity.transition || activity.command {
+            return Err(WorkspaceError::new(
+                "WORKSPACE_BUSY",
+                "Workspace đang bận; hãy chờ thao tác hiện tại kết thúc.",
+            ));
+        }
+        Ok(())
     }
 
     pub(crate) fn active_snapshot(&self) -> Result<Option<WorkspaceSnapshot>, WorkspaceError> {

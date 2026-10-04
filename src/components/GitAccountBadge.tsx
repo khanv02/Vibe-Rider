@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { GitIdentity, GitRemoteInfo } from "../git/types";
 import { openExternalUrl } from "../git/accountApi";
 
@@ -10,10 +10,33 @@ interface GitAccountBadgeProps {
 
 export function GitAccountBadge({ authVerified, identity, remote }: GitAccountBadgeProps) {
   const [menuError, setMenuError] = useState<string | null>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const popoverRef = useRef<HTMLDetailsElement>(null);
   const username = githubUsername(identity?.email);
   const isGitHub = remote?.provider === "github" || Boolean(username);
   const isLoggedIn = authVerified;
   const repositoryUrl = remote?.repositoryUrl ?? null;
+
+  useEffect(() => {
+    function closeOnOutsidePointer(event: PointerEvent) {
+      const target = event.target;
+      if (target instanceof Node && !popoverRef.current?.contains(target)) {
+        setMenuOpen(false);
+      }
+    }
+
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") setMenuOpen(false);
+    }
+
+    document.addEventListener("pointerdown", closeOnOutsidePointer);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("pointerdown", closeOnOutsidePointer);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, []);
+
   if (!identity && !remote) return null;
 
   const label = username ? `@${username}` : identity?.name ?? "Git identity";
@@ -30,10 +53,14 @@ export function GitAccountBadge({ authVerified, identity, remote }: GitAccountBa
   }
 
   return (
-    <details className={`app-account-popover${authVerified ? " app-account-badge-verified" : ""}`}>
+    <details className={`app-account-popover${authVerified ? " app-account-badge-verified" : ""}`} open={menuOpen} ref={popoverRef}>
       <summary
         aria-label="Git account menu"
         className="app-account-trigger"
+        onClick={(event) => {
+          event.preventDefault();
+          setMenuOpen((current) => !current);
+        }}
         title={isGitHub ? `${label} · GitHub account` : `${label} · Git identity`}
       >
         <span className={`app-account-avatar${isGitHub ? " app-account-avatar-github" : ""}`}>
@@ -46,7 +73,7 @@ export function GitAccountBadge({ authVerified, identity, remote }: GitAccountBa
         </span>
       </summary>
       <div className="app-account-menu">
-        <div className="app-account-menu-heading"><strong>{label}</strong><span>{identity?.email ?? "No commit email configured"}</span><span>{authVerified ? "Auth verified after successful Push" : "Auth checked when Push runs"}</span></div>
+        <div className="app-account-menu-heading"><strong>{label}</strong></div>
         {repositoryUrl ? (
           <button onClick={() => void openAccountUrl(repositoryUrl)} type="button">Repository</button>
         ) : null}

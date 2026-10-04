@@ -19,6 +19,7 @@ export const RIGHT_PANEL_DEFAULT_STATE: RightPanelState = {
   rightPanelWidth: RIGHT_PANEL_DEFAULT_WIDTH,
   editorSize: "normal",
   editorExpandedWidth: null,
+  keepExpandedOnSwitch: true,
   side: "right",
 };
 

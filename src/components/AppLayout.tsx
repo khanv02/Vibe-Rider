@@ -5,8 +5,11 @@ import type { TerminalPaneId, TerminalPaneState } from "../terminal/types";
 import { StatusBar } from "./StatusBar";
 import type { GitBranch } from "../git/types";
 import type { RightPanelSide } from "../panels/types";
+import type { CloseConfirmMode, UiTheme } from "../preferences/types";
 
 interface AppLayoutProps {
+  theme: UiTheme;
+  onThemeChange: (theme: UiTheme) => void;
   terminalWorkspace: ReactNode;
   rightPanel: ReactNode;
   isOpeningWorkspace: boolean;
@@ -28,9 +31,13 @@ interface AppLayoutProps {
   gitBranch: GitBranch | null;
   panelSide: RightPanelSide;
   onPanelSideChange: (side: RightPanelSide) => void;
+  closeMode: CloseConfirmMode;
+  onCloseModeChange: (mode: CloseConfirmMode) => void;
 }
 
 export function AppLayout({
+  theme,
+  onThemeChange,
   terminalWorkspace,
   rightPanel,
   isOpeningWorkspace,
@@ -52,6 +59,8 @@ export function AppLayout({
   gitBranch,
   panelSide,
   onPanelSideChange,
+  closeMode,
+  onCloseModeChange,
 }: AppLayoutProps) {
   const bodyRef = useRef<HTMLElement | null>(null);
 
@@ -89,11 +98,6 @@ export function AppLayout({
           <h1>Vibe Rider</h1>
           <span className="app-mode">WORKSPACE</span>
         </div>
-        <div className="header-context">
-          <span className="header-context-label">LOCAL / TERMINAL-FIRST</span>
-          <span className="header-context-divider" aria-hidden="true" />
-          <span>Desktop shell preview</span>
-        </div>
         <button
           className="header-open-button"
           disabled={isOpeningWorkspace}
@@ -107,6 +111,21 @@ export function AppLayout({
           <button className={panelSide === "left" ? "size-button size-button-active" : "size-button"} onClick={() => onPanelSideChange("left")} type="button">Left</button>
           <button className={panelSide === "right" ? "size-button size-button-active" : "size-button"} onClick={() => onPanelSideChange("right")} type="button">Right</button>
         </div>
+        <label className="header-theme-control">
+          <span>Theme</span>
+          <select aria-label="Theme" id="theme-select" name="theme" value={theme} onChange={(event) => onThemeChange(event.target.value as UiTheme)}>
+            <option value="dark">Dark</option>
+            <option value="light">Light</option>
+          </select>
+        </label>
+        <label className="header-close-mode">
+          <span>Close</span>
+          <select aria-label="Close confirmation mode" id="close-mode-select" name="closeMode" value={closeMode} onChange={(event) => onCloseModeChange(event.target.value as CloseConfirmMode)}>
+            <option value="always">Confirm before close</option>
+            <option value="when-needed">Confirm when needed</option>
+            <option value="never">Close without confirm</option>
+          </select>
+        </label>
         <button
           aria-controls="right-panel"
           aria-expanded={panelOpen}

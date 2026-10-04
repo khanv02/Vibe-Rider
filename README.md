@@ -96,6 +96,14 @@ Kế hoạch triển khai, baseline code, files/ownership và thứ tự task: [
 
 Phạm vi, dependency, ownership files và checklist: [Phase 7 UX Plan](agents/plans/Phase_7_UX_Plan.md). Core 7.1–7.4, workspace/Git transition guard và Git UI/mutations đã triển khai; native matrix và dogfooding còn chờ.
 
+### Phase 9 — Read-only Agent (nền tảng đã triển khai)
+
+Đã triển khai nền tảng Phase 9 và local Activity Log. Search bằng ripgrep, mở kết quả tại dòng trong Editor, registry read-only tái sử dụng filesystem/Git và Activity panel ghi session metadata/checkpoint/terminal lifecycle an toàn ở app-local data. Chi tiết actual results: [Phase 9 Preview](docs/phase-9-read-only-agent-preview.md). Native acceptance và dogfooding Phase 6/7 vẫn cần evidence riêng. Hướng đã chốt cho phần tiếp theo là AI CLI + local Activity Log; chưa tích hợp provider/chat riêng trong giao diện.
+
+### Phase 10 — Coding Agent (plan và bản đầu Editor)
+
+Phase 10 core và packaging đã triển khai: backend proposal/apply theo ID, Diff Viewer Accept/Reject giữ dirty buffer, command Run/Cancel có timeout/output cap/process cleanup, Activity Log verification và MSI/NSIS installer. [Phase 10 Plan](agents/plans/Phase_10_Coding_Agent_Plan.md) còn ghi các bước native click-through, CSP và clean-machine acceptance; AI CLI tiếp tục chạy trực tiếp trong terminal theo product direction, không parse terminal output thành approval.
+
 ## Product direction
 
 ```text
@@ -171,7 +179,7 @@ React cập nhật header/status và khởi tạo Explorer root listing
 | Layer | Công nghệ | Trạng thái |
 | --- | --- | --- |
 | Desktop shell | Tauri 2 | Đã có; native startup đã kiểm tra |
-| System core | Rust | Có workspace state, `ping`, `open_workspace`, `read_directory`, `read_file`, `write_file`, `terminal_spawn`, `terminal_write`, `terminal_resize`, `terminal_ack`, `terminal_close` |
+| System core | Rust | Có workspace state, filesystem/editor, PTY, Search, Git và read-only tool registry |
 | Native dialog | `tauri-plugin-dialog` | Đã tích hợp cho Open Folder |
 | Serialization | `serde` | Đã dùng cho workspace DTO/error |
 | Frontend | React + TypeScript | Đã có |
@@ -179,8 +187,9 @@ React cập nhật header/status và khởi tạo Explorer root listing
 | State | React local state | Đang dùng cho Phase 1; shared store chưa có |
 | Terminal UI | React + xterm.js + FitAddon | Có output stream, input, resize, Start/Close và session metadata |
 | PTY | `portable-pty` 0.9 / Windows ConPTY | Đã tích hợp cho một PowerShell session |
-| Editor | Monaco Editor | Chưa tích hợp |
-| Git/search | Git CLI + ripgrep | Chưa tích hợp |
+| Editor | Monaco Editor | Đã tích hợp file tabs, dirty/revision guard và navigation từ Search |
+| Git/search | Git CLI + ripgrep | Đã tích hợp Git UI/mutations và bounded literal Search |
+| Activity Log | Local JSONL trong app data | Đã tích hợp session history, checkpoint, redaction và resume log |
 
 ## Yêu cầu môi trường Windows
 
@@ -442,3 +451,14 @@ Chỉ chuyển phase sau khi tiêu chí nghiệm thu của phase hiện tại đ
 - [Phase 6 Git Plan](agents/plans/Phase_6_Git_Plan.md) — baseline/dependencies, architecture, API/process lifecycle, files/ownership và task checkpoints.
 - [Phase 7 UX Plan](agents/plans/Phase_7_UX_Plan.md) — phần UX song song Phase 6, contracts/ownership, persistence/restore và checkpoints tích hợp.
 - [Phase 7 UX](docs/phase-7-ux-preview.md) — core 7.1–7.4 đã triển khai; native matrix, Git coordination và dogfooding còn chờ.
+- [Phase 10 Coding Agent Plan](agents/plans/Phase_10_Coding_Agent_Plan.md) — baseline proposal/review hiện có, backend approval/apply, command lifecycle, CLI integration và nghiệm thu V1.
+
+## Activity panel update
+
+The Activity panel now uses a consistent English-only interface and a clearer reading order:
+
+- Current session status, refresh action, local-storage privacy note, and checkpoint input.
+- Session history with event counts, timestamps, status labels, resume, and delete actions.
+- Session detail view with readable event summaries and optional event details.
+- Activity errors are normalized to concise English messages instead of exposing backend-localized text.
+- Typography, line height, padding, and spacing were adjusted for a cleaner compact panel layout.

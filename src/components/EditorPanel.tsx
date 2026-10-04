@@ -4,17 +4,21 @@ import type { WorkspaceEditorController } from "../editor/useWorkspaceEditor";
 import { MonacoEditor } from "./MonacoEditor";
 import { SharedDiffViewer } from "./SharedDiffViewer";
 import { UnsavedChangesDialog } from "./UnsavedChangesDialog";
+import type { UiTheme } from "../preferences/types";
 
 interface EditorPanelProps {
+  theme: UiTheme;
   controller: WorkspaceEditorController;
   editorSize: EditorPanelSize;
   onEditorSizeChange: (size: EditorPanelSize) => void;
 }
 
-export function EditorPanel({ controller, editorSize, onEditorSizeChange }: EditorPanelProps) {
+export function EditorPanel({ theme, controller, editorSize, onEditorSizeChange }: EditorPanelProps) {
   const [pendingClose, setPendingClose] = useState<string | null>(null);
   const pendingTab = controller.tabs.find((tab) => tab.fileId === pendingClose);
   const activeTab = controller.tabs.find((tab) => tab.fileId === controller.activeFileId);
+  const proposalIsActive = Boolean(controller.proposal && controller.proposal.fileId === activeTab?.fileId);
+  const proposalIsVisible = Boolean(controller.proposal && activeTab?.fileId === controller.proposal.fileId && controller.diff?.proposalId === controller.proposal.proposalId);
 
   async function saveAndClose() {
     if (!pendingClose) return;
@@ -37,18 +41,40 @@ export function EditorPanel({ controller, editorSize, onEditorSizeChange }: Edit
       <div className="editor-toolbar">
         <div className="editor-toolbar-copy">
           <span className="panel-kicker">LOCAL EDITOR</span>
-          <span className="editor-toolbar-status">{activeTab ? (activeTab.dirty ? "Unsaved" : activeTab.status) : "Choose a file"}</span>
+          <span className="editor-toolbar-status">{proposalIsActive ? "Proposal pending approval" : activeTab ? (activeTab.dirty ? "Unsaved" : activeTab.status) : "Choose a file"}</span>
         </div>
         <div className="editor-toolbar-actions">
-          <button className="editor-quiet-button" disabled={!activeTab || activeTab.readOnly || activeTab.status === "saving"} onClick={() => void controller.saveFile()} type="button">Save</button>
-          <button className="editor-quiet-button" disabled={!activeTab} onClick={() => controller.showDiff()} type="button">Review</button>
+          <div className="editor-navigation" aria-label="File navigation">
+            <button
+              aria-label="Go back"
+              className="editor-quiet-button editor-nav-button"
+              disabled={!controller.canGoBack}
+              onClick={() => void controller.goBack()}
+              title="Go back (Alt+Left or mouse Back button)"
+              type="button"
+            >
+              ←
+            </button>
+            <button
+              aria-label="Go forward"
+              className="editor-quiet-button editor-nav-button"
+              disabled={!controller.canGoForward}
+              onClick={() => void controller.goForward()}
+              title="Go forward (Alt+Right or mouse Forward button)"
+              type="button"
+            >
+              →
+            </button>
+          </div>
+          <button className="editor-quiet-button" disabled={!activeTab || activeTab.readOnly || activeTab.status === "saving" || proposalIsActive} onClick={() => void controller.saveFile()} type="button">Save</button>
+          <button className="editor-quiet-button" disabled={!activeTab || activeTab.readOnly || (!activeTab.dirty && !proposalIsActive)} onClick={() => controller.showDiff()} type="button">{proposalIsActive ? "Review proposal" : "Propose patch"}</button>
           <button className={editorSize === "normal" ? "size-button size-button-active" : "size-button"} onClick={() => onEditorSizeChange("normal")} type="button">Normal</button>
           <button className={editorSize === "expanded" ? "size-button size-button-active" : "size-button"} onClick={() => onEditorSizeChange("expanded")} type="button">Expanded</button>
         </div>
       </div>
       <div className="editor-tabs" role="tablist" aria-label="Open files">
         {controller.tabs.map((tab) => (
-          <div className={`editor-tab${tab.fileId === controller.activeFileId ? " editor-tab-active" : ""}`} key={tab.fileId} role="presentation">
+          <div className={`editor-tab${tab.fileId === controller.activeFileId ? " editor-tab-active" : ""}${controller.pendingFilePaths.includes(tab.relativePath) ? " editor-tab-pending" : ""}`} key={tab.fileId} role="presentation">
             <button aria-selected={tab.fileId === controller.activeFileId} className="editor-tab-label" onClick={() => controller.setActive(tab.fileId)} role="tab" type="button">
               <span className="editor-tab-state" aria-hidden="true">{tab.dirty ? "●" : tab.status === "loading" ? "…" : ""}</span>
               <span className="editor-tab-name" title={tab.relativePath}>{tab.relativePath.split("/").pop()}</span>
@@ -60,12 +86,23 @@ export function EditorPanel({ controller, editorSize, onEditorSizeChange }: Edit
       </div>
       <div className="editor-stage">
         {controller.activeEntry && activeTab ? (
-          <MonacoEditor fileId={controller.activeEntry.snapshot.fileId} model={controller.activeEntry.model} onChange={(content) => controller.updateDraft(controller.activeEntry?.snapshot.fileId ?? "", content)} onSave={() => void controller.saveFile(controller.activeFileId ?? undefined)} readOnly={activeTab.readOnly} />
+          <MonacoEditor theme={theme} fileId={controller.activeEntry.snapshot.fileId} model={controller.activeEntry.model} navigation={controller.navigation} onChange={(content) => controller.updateDraft(controller.activeEntry?.snapshot.fileId ?? "", content)} onSave={() => void controller.saveFile(controller.activeFileId ?? undefined)} readOnly={activeTab.readOnly} />
         ) : (
           <div className="editor-empty-state"><span className="tool-placeholder-icon" aria-hidden="true">&lt;&gt;</span><h3>Open a file to edit</h3><p>Chọn file thường trong Explorer. Terminal và panel state vẫn được giữ khi Editor ẩn.</p></div>
         )}
-        {controller.diff ? <SharedDiffViewer onClose={controller.closeDiff} preview={controller.diff} /> : null}
+        {controller.diff ? (
+          <SharedDiffViewer
+            theme={theme}
+            acceptDisabled={!proposalIsVisible || activeTab?.status === "saving" || activeTab?.readOnly}
+            onAccept={proposalIsVisible ? () => void controller.acceptProposal() : undefined}
+            onClose={controller.closeDiff}
+            onReject={proposalIsVisible ? controller.rejectProposal : undefined}
+            preview={controller.diff}
+            proposalError={proposalIsVisible ? controller.proposalError : null}
+          />
+        ) : null}
       </div>
+      {controller.proposalError && !controller.diff ? <div className="editor-message editor-message-conflict"><span>{controller.proposalError}</span></div> : null}
       {activeTab?.error ? <div className={`editor-message editor-message-${activeTab.status}`}><span>{activeTab.error}</span>{activeTab.status === "conflict" ? <><button className="editor-message-action" onClick={() => void controller.compareWithDisk(activeTab.fileId)} type="button">Compare disk</button><button className="editor-message-action" onClick={() => void controller.reloadFromDisk(activeTab.fileId)} type="button">Reload disk</button></> : null}</div> : null}
       {pendingTab ? <UnsavedChangesDialog fileName={pendingTab.relativePath} onCancel={() => setPendingClose(null)} onDiscard={() => { controller.closeFile(pendingTab.fileId); setPendingClose(null); }} onSave={() => void saveAndClose()} saving={pendingTab.status === "saving"} /> : null}
     </div>

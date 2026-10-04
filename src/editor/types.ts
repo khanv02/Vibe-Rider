@@ -44,6 +44,41 @@ export interface DiffPreview {
   relativePath: string;
   original: string;
   modified: string;
+  proposalId?: string;
   originalLabel?: string;
   modifiedLabel?: string;
+}
+
+/**
+ * An in-memory change proposal. The expected revision is the snapshot that
+ * was reviewed; it is never allowed to silently drift before Apply.
+ */
+export interface PatchProposal {
+  proposalId: string;
+  workspaceId: string;
+  fileId: string;
+  relativePath: string;
+  expectedRevision: string;
+  original: string;
+  proposed: string;
+  modelVersion: number;
+  createdAt: number;
+  contentDigest?: string;
+  expiresAt?: number;
+  state?: "pending" | "applying" | "applied" | "rejected" | "stale" | "failed" | "expired";
+}
+
+export interface EditorLocation {
+  navigationId: string;
+  fileId: string;
+  line: number;
+  column: number;
+  endColumn?: number;
+}
+
+export type FileOperationKind = "delete" | "restore";
+
+export interface PendingFileOperation {
+  kind: FileOperationKind;
+  relativePaths: string[];
 }

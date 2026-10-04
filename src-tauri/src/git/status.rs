@@ -451,10 +451,9 @@ fn remote_web_url(url: &str) -> Option<String> {
     } else if let Some(value) = without_query.strip_prefix("ssh://") {
         let value = value.split_once('@').map(|pair| pair.1).unwrap_or(value);
         value.split_once('/')?
-    } else if let Some(value) = without_query.split_once('@').map(|pair| pair.1) {
-        value.split_once(':')?
     } else {
-        return None;
+        let value = without_query.split_once('@').map(|pair| pair.1)?;
+        value.split_once(':')?
     };
     let host = host.split(':').next().unwrap_or(host).to_ascii_lowercase();
     if !matches!(host.as_str(), "github.com" | "gitlab.com" | "bitbucket.org") {

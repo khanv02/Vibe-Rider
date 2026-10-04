@@ -4,3 +4,18 @@ src-tauri/target/
 src-tauri/.runtime-data/
 *.log
 .DS_Store
+
+# Workspace runtime artifacts
+.vibe-rider/clipboard/
+.vibe-rider-save-*.tmp
+
+# Local audit/build output
+dist-form-audit/
+
+# Local environment secrets
+.env
+.env.*
+!.env.example
+
+# Windows metadata
+Thumbs.db

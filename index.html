@@ -4,9 +4,55 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#0f1117" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <title>Vibe Rider</title>
+    <style>
+      html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background: #0b0e13; }
+      #initial-splash {
+        position: fixed;
+        z-index: 9999;
+        inset: 0;
+        display: grid;
+        place-items: center;
+        overflow: hidden;
+        background: radial-gradient(circle at 50% 22%, rgba(64, 111, 117, 0.24), transparent 36%), #0b0e13;
+        opacity: 1;
+        transition: opacity 180ms ease;
+      }
+      #initial-splash.is-hidden { opacity: 0; pointer-events: none; }
+      #initial-splash-card {
+        width: min(420px, calc(100vw - 36px));
+        overflow: hidden;
+        border: 1px solid #31434e;
+        border-radius: 8px;
+        background: #101820;
+        box-shadow: 0 26px 80px rgba(0, 0, 0, 0.46), 0 0 0 1px rgba(145, 225, 195, 0.04);
+      }
+      #initial-splash-chrome { display: flex; align-items: center; gap: 7px; height: 31px; padding: 0 11px; border-bottom: 1px solid #273642; color: #758697; font: 10px ui-monospace, SFMono-Regular, Consolas, monospace; }
+      #initial-splash-chrome::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: #91e1c3; box-shadow: 12px 0 #d5b477, 24px 0 #a66e77; }
+      #initial-splash-chrome span:last-child { margin-left: auto; color: #526475; }
+      #initial-splash-content { display: flex; flex-direction: column; align-items: center; padding: 10px 28px 27px; }
+      #initial-splash-character { display: block; width: min(230px, 64vw); height: 154px; margin: 0 0 4px; object-fit: contain; object-position: center bottom; }
+      #initial-splash h1 { margin: 5px 0 0; color: #f2f4f7; font: 650 17px Inter, system-ui, sans-serif; letter-spacing: -0.02em; }
+      #initial-splash p { margin: 7px 0 0; color: #8190a3; font: 10px ui-monospace, SFMono-Regular, Consolas, monospace; }
+      #initial-splash p::first-letter { color: #91e1c3; }
+      #initial-splash-bar { width: 190px; height: 3px; margin-top: 18px; overflow: hidden; border-radius: 99px; background: #24313b; }
+      #initial-splash-bar::after { content: ""; display: block; width: 42%; height: 100%; border-radius: inherit; background: #91e1c3; animation: initial-splash-progress 1.2s ease-in-out infinite; }
+      @keyframes initial-splash-progress { 0% { transform: translateX(-120%); } 50% { transform: translateX(170%); } 100% { transform: translateX(340%); } }
+    </style>
   </head>
   <body>
+    <div id="initial-splash" aria-label="Loading Vibe Rider">
+      <div id="initial-splash-card">
+        <div id="initial-splash-chrome"><span>...</span></div>
+        <div id="initial-splash-content">
+          <img id="initial-splash-character" alt="Cheerful Vibe Rider chibi mascot" src="/assets/loading-characters/character-3.png" />
+          <h1>Vibe Rider</h1>
+          <p>&gt; initializing workspace...</p>
+          <div id="initial-splash-bar" aria-hidden="true"></div>
+        </div>
+      </div>
+    </div>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

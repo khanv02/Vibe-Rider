@@ -36,6 +36,7 @@ export interface WorkspaceGitController {
   setCommitMessage: (message: string) => void;
   refresh: () => Promise<void>;
   toggleSelected: (entryId: string) => void;
+  toggleEntriesSelected: (entryIds: string[]) => void;
   clearSelection: () => void;
   review: (entry: GitStatusEntry, scope: "staged" | "unstaged") => Promise<void>;
   closeDiff: () => void;
@@ -57,16 +58,37 @@ function feedbackFrom(reason: unknown, operation: string): GitFeedback {
     ? reason as Partial<GitError>
     : {};
   const code = typeof error.code === "string" ? error.code : "GIT_FAILED";
-  const message = typeof error.message === "string" ? error.message : String(reason);
+  const messages: Record<string, string> = {
+    NO_WORKSPACE: "Open a workspace before using Git.",
+    STALE_WORKSPACE: "The workspace changed while Git was running.",
+    GIT_NOT_FOUND: "Git was not found in PATH. Install Git and restart the app.",
+    NO_REPOSITORY: "The workspace is not a Git repository.",
+    REPOSITORY_INVALID: "The Git repository is not supported or is invalid.",
+    GIT_BUSY: "Another Git operation is already running.",
+    GIT_CANCELLED: "The Git operation was cancelled.",
+    GIT_IO_ERROR: "Git could not read or write the process stream.",
+    GIT_WORKER_FAILED: "The Git worker failed unexpectedly.",
+    INVALID_PATH: "The selected Git path is invalid.",
+    OUTSIDE_WORKSPACE: "The selected path is outside the workspace.",
+    STALE_STATUS: "The repository changed before the operation completed.",
+    FILE_CONFLICT: "The file changed on disk. Review it again before retrying.",
+    NOTHING_STAGED: "Select files and Stage them before Commit.",
+    CONFLICT: "Resolve repository conflicts in the terminal before continuing.",
+    INDEX_LOCKED: "The Git index is locked. Close other Git processes and try again.",
+    INVALID_MODE: "The selected Git operation mode is invalid.",
+    INVALID_BRANCH: "The branch name is invalid.",
+    UPSTREAM_REQUIRED: "Configure an upstream branch before Push.",
+  };
+  const message = messages[code] ?? "The Git operation failed. Check the operation and try again.";
   const guidance: Record<string, string> = {
-    AUTH_REQUIRED: "Hãy đăng nhập qua SSH/Git Credential Manager rồi thử Push lại. App không lưu password/token.",
-    MISSING_USER_IDENTITY: "Cấu hình git config user.name và git config user.email trước khi Commit.",
-    PERMISSION_DENIED: "Kiểm tra quyền file/repository và credential của remote.",
-    HOOK_FAILED: "Đọc output của Git hook trong thông báo, sửa lỗi rồi thử Commit lại.",
-    INDEX_LOCKED: "Đảm bảo không còn Git process khác chạy; sau đó Refresh status rồi thử lại.",
-    PUSH_REJECTED: "Remote đã có thay đổi; Pull/rebase thủ công trong terminal rồi Refresh trước khi Push.",
-    STALE_STATUS: "Repository đã thay đổi; Refresh status và review lại file trước khi thử lại.",
-    NOTHING_STAGED: "Chọn file rồi Stage trước khi Commit.",
+    AUTH_REQUIRED: "Sign in through SSH or Git Credential Manager, then try Push again. The app does not store passwords or tokens.",
+    MISSING_USER_IDENTITY: "Configure git config user.name and git config user.email before Commit.",
+    PERMISSION_DENIED: "Check file/repository permissions and the remote credentials.",
+    HOOK_FAILED: "Read the Git hook output, fix the issue, then try Commit again.",
+    INDEX_LOCKED: "Make sure no other Git process is running, then Refresh status and try again.",
+    PUSH_REJECTED: "The remote has changed. Pull or rebase manually in the terminal, then Refresh before Push.",
+    STALE_STATUS: "The repository changed. Refresh status and review the files again before retrying.",
+    NOTHING_STAGED: "Select files and Stage them before Commit.",
   };
   return {
     kind: "error",
@@ -80,6 +102,8 @@ function feedbackFrom(reason: unknown, operation: string): GitFeedback {
 export function useWorkspaceGit(
   workspace: WorkspaceDescriptor | null,
   prepareRestore?: () => Promise<boolean>,
+  captureFileOperation?: (relativePaths: string[], kind: "delete" | "restore") => void,
+  completeFileOperation?: (success: boolean) => void,
 ): WorkspaceGitController {
   const [status, setStatus] = useState<GitStatus | null>(null);
   const [diff, setDiff] = useState<GitDiffSnapshot | null>(null);
@@ -174,19 +198,33 @@ export function useWorkspaceGit(
     });
   }, []);
 
+  const toggleEntriesSelected = useCallback((entryIds: string[]) => {
+    setSelected((previous) => {
+      const next = new Set(previous);
+      const allSelected = entryIds.length > 0 && entryIds.every((entryId) => next.has(entryId));
+      entryIds.forEach((entryId) => {
+        if (allSelected) next.delete(entryId);
+        else next.add(entryId);
+      });
+      return next;
+    });
+  }, []);
+
   const runMutation = useCallback(async (task: () => Promise<unknown>, operation: string) => {
-    if (busy) return;
+    if (busy) return false;
     setBusy(true);
     setOperation(null);
-    setFeedback({ kind: "info", code: "RUNNING", operation, message: `${operation} đang chạy…`, guidance: null });
+    setFeedback({ kind: "info", code: "RUNNING", operation, message: `${operation} is running…`, guidance: null });
     try {
       await task();
       setSelected(new Set());
       await refresh();
       if (operation === "Push") setAuthVerified(true);
-      setFeedback({ kind: "success", code: "OK", operation, message: `${operation} thành công.`, guidance: null });
+      setFeedback({ kind: "success", code: "OK", operation, message: `${operation} completed successfully.`, guidance: null });
+      return true;
     } catch (reason) {
       setFeedback(feedbackFrom(reason, operation));
+      return false;
     } finally {
       setBusy(false);
     }
@@ -235,11 +273,13 @@ export function useWorkspaceGit(
       if (!currentStatus || !currentWorkspace) return;
       const currentEntries = currentStatus.entries.filter((entry) => selected.has(entry.entryId));
       if (currentEntries.length === 0) return;
-      const confirmed = window.confirm("Restore sẽ bỏ các thay đổi đã lưu trên disk về nội dung trong Index. Draft chưa Save của Editor không bị tự động ghi đè. Tiếp tục?");
+      const confirmed = window.confirm("Restore will replace saved disk changes with the content from the Index. Unsaved Editor drafts will not be overwritten automatically. Continue?");
       if (!confirmed) return;
-      await runMutation(() => restoreGitEntries(currentWorkspace.id, currentEntries.map((entry) => ({ entryId: entry.entryId, restoreToken: entry.restoreToken })), currentStatus.statusToken, "worktree"), "Restore");
+      captureFileOperation?.(currentEntries.map((entry) => entry.currentPath), "restore");
+      const success = await runMutation(() => restoreGitEntries(currentWorkspace.id, currentEntries.map((entry) => ({ entryId: entry.entryId, restoreToken: entry.restoreToken })), currentStatus.statusToken, "worktree"), "Restore");
+      completeFileOperation?.(success);
     })();
-  }, [prepareRestore, refresh, runMutation, selected, selectedEntries.length, status, workspace]);
+  }, [captureFileOperation, completeFileOperation, prepareRestore, refresh, runMutation, selected, selectedEntries.length, status, workspace]);
 
   const commit = useCallback(() => {
     if (!status || !workspace || !commitMessage.trim()) return Promise.resolve();
@@ -274,7 +314,7 @@ export function useWorkspaceGit(
     if (!workspace || !operation) return;
     try {
       await cancelGitOperation(workspace.id, operation.operationId);
-      setFeedback({ kind: "info", code: "CANCEL_REQUESTED", operation: operation.operation, message: "Đã gửi yêu cầu huỷ; đang chờ process kết thúc an toàn.", guidance: null });
+      setFeedback({ kind: "info", code: "CANCEL_REQUESTED", operation: operation.operation, message: "Cancellation requested; waiting for the process to exit safely.", guidance: null });
     } catch (reason) {
       setFeedback(feedbackFrom(reason, "Cancel"));
     }
@@ -293,6 +333,7 @@ export function useWorkspaceGit(
     setCommitMessage,
     refresh,
     toggleSelected,
+    toggleEntriesSelected,
     clearSelection: () => setSelected(new Set()),
     review,
     closeDiff: () => setDiff(null),

@@ -1,6 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { formatWorkspaceError, readDirectory } from "./workspaceApi";
-import type { DirectoryEntry, DirectoryListing, WorkspaceDescriptor } from "./types";
+import {
+  createEntry as createEntryOnDisk,
+  deleteEntry as deleteEntryOnDisk,
+  formatWorkspaceError,
+  readDirectory,
+} from "./workspaceApi";
+import type { CreateEntryKind, DirectoryEntry, DirectoryListing, WorkspaceDescriptor } from "./types";
 
 export const ROOT_PATH = "";
 
@@ -9,6 +14,8 @@ export interface ExplorerState {
   errorsByPath: Record<string, string | undefined>;
   expandedPaths: Record<string, boolean>;
   loadingPaths: Record<string, boolean>;
+  mutationBusy: boolean;
+  mutationError: string | undefined;
   selectedPath: string | null;
 }
 
@@ -16,6 +23,10 @@ export interface WorkspaceExplorerController extends ExplorerState {
   isDirectoryLoaded: (relativePath: string) => boolean;
   refreshDirectory: (relativePath: string) => void;
   retryDirectory: (relativePath: string) => void;
+  createEntry: (parentRelativePath: string, name: string, kind: CreateEntryKind) => Promise<boolean>;
+  deleteEntry: (relativePath: string) => Promise<boolean>;
+  clearMutationError: () => void;
+  clearSelection: () => void;
   selectEntry: (entry: DirectoryEntry) => void;
   toggleDirectory: (relativePath: string) => void;
 }
@@ -26,6 +37,8 @@ function createInitialState(): ExplorerState {
     errorsByPath: {},
     expandedPaths: {},
     loadingPaths: {},
+    mutationBusy: false,
+    mutationError: undefined,
     selectedPath: null,
   };
 }
@@ -226,8 +239,64 @@ export function useWorkspaceExplorer(
     [loadDirectory],
   );
 
+  const createEntry = useCallback(
+    async (parentRelativePath: string, name: string, kind: CreateEntryKind): Promise<boolean> => {
+      if (!workspace) return false;
+      const generation = generationRef.current;
+      setState((current) => ({ ...current, mutationBusy: true, mutationError: undefined }));
+      try {
+        await createEntryOnDisk(workspace.id, parentRelativePath, name, kind);
+        if (generation === generationRef.current) {
+          refreshDirectory(parentRelativePath);
+        }
+        return true;
+      } catch (error) {
+        setState((current) => ({ ...current, mutationError: formatWorkspaceError(error) }));
+        return false;
+      } finally {
+        setState((current) => ({ ...current, mutationBusy: false }));
+      }
+    },
+    [refreshDirectory, workspace],
+  );
+
+  const deleteEntry = useCallback(
+    async (relativePath: string): Promise<boolean> => {
+      if (!workspace) return false;
+      const generation = generationRef.current;
+      setState((current) => ({ ...current, mutationBusy: true, mutationError: undefined }));
+      try {
+        await deleteEntryOnDisk(workspace.id, relativePath);
+        if (generation === generationRef.current) {
+          const separator = relativePath.lastIndexOf("/");
+          const parentRelativePath = separator === -1 ? ROOT_PATH : relativePath.slice(0, separator);
+          refreshDirectory(parentRelativePath);
+          setState((current) => ({
+            ...current,
+            selectedPath: current.selectedPath === relativePath ? null : current.selectedPath,
+          }));
+        }
+        return true;
+      } catch (error) {
+        setState((current) => ({ ...current, mutationError: formatWorkspaceError(error) }));
+        return false;
+      } finally {
+        setState((current) => ({ ...current, mutationBusy: false }));
+      }
+    },
+    [refreshDirectory, workspace],
+  );
+
   const selectEntry = useCallback((entry: DirectoryEntry) => {
     setState((current) => ({ ...current, selectedPath: entry.relativePath }));
+  }, []);
+
+  const clearSelection = useCallback(() => {
+    setState((current) => ({ ...current, selectedPath: null }));
+  }, []);
+
+  const clearMutationError = useCallback(() => {
+    setState((current) => ({ ...current, mutationError: undefined }));
   }, []);
 
   return {
@@ -235,6 +304,10 @@ export function useWorkspaceExplorer(
     isDirectoryLoaded,
     refreshDirectory,
     retryDirectory,
+    createEntry,
+    deleteEntry,
+    clearMutationError,
+    clearSelection,
     selectEntry,
     toggleDirectory,
   };

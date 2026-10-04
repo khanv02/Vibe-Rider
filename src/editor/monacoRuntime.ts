@@ -21,6 +21,22 @@ export function configureMonaco(): void {
       "editor.selectionBackground": "#24433b",
     },
   });
+  monaco.editor.defineTheme("vibe-rider-light", {
+    base: "vs",
+    inherit: true,
+    rules: [],
+    colors: {
+      "editor.background": "#f8fbfd",
+      "editor.foreground": "#25313d",
+      "editorLineNumber.foreground": "#8a99a8",
+      "editorLineNumber.activeForeground": "#087f66",
+      "editorCursor.foreground": "#087f66",
+      "editor.selectionBackground": "#cceee2",
+      "editor.lineHighlightBackground": "#eef6f3",
+      "editorWidget.background": "#ffffff",
+      "editorWidget.border": "#d7e0e8",
+    },
+  });
 }
 
 export function languageForPath(relativePath: string): string {

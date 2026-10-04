@@ -317,32 +317,41 @@ Implementation evidence: [Phase 7 UX Preview](../../docs/phase-7-ux-preview.md).
 
 ### Phase 9 — Read-only Agent
 
+Kế hoạch chi tiết: [Phase 9 — Read-only Agent](Phase_9_Read_Only_Agent_Plan.md). Tiến độ: **nền tảng 9.1–9.3 và local Activity Log đã triển khai; 9.4 agent loop/CLI adapter và native acceptance còn pending**. Preview actual results: [Phase 9 Read-only Agent](../../docs/phase-9-read-only-agent-preview.md). Hướng đã chốt là AI CLI + local Activity Log; registry read-only và activity contract được giữ độc lập để tích hợp CLI sau.
+
 **Mục tiêu:** agent tìm và đọc code trong workspace để trả lời có căn cứ.
 
 **Task:**
 
-- [ ] **9.1 — Search service:** Rust gọi ripgrep, giới hạn result/output/time và hỗ trợ cancel.
-- [ ] **9.2 — Search UI:** path, line, snippet và mở vị trí trong editor.
-- [ ] **9.3 — Read tools:** `read_file`, `list_directory`, `search_text`, `git_status`, `git_diff`.
+- [x] **9.1 — Search service:** Rust gọi ripgrep, giới hạn result/output/time và hỗ trợ cancel.
+- [x] **9.2 — Search UI:** path, line, snippet và mở vị trí trong editor.
+- [x] **9.3 — Read tools:** `read_file`, `list_directory`, `search_text`, `git_status`, `git_diff`.
 - [ ] **9.4 — Agent loop:** validate tool arguments, execute qua Rust, giới hạn bước/thời gian/output.
-- [ ] **9.5 — Tool activity:** hiển thị dữ liệu đã đọc và câu trả lời có path/line; chỉ read-only registry.
+- [x] **9.5a — Local Activity Log:** session history, checkpoint, terminal lifecycle và resume log; local-only, bounded và redacted.
+- [ ] **9.5b — Tool activity/evidence:** hiển thị dữ liệu agent đã đọc và câu trả lời có path/line; chỉ read-only registry.
 
 **Nghiệm thu:** agent tìm đúng code; path ngoài workspace bị từ chối; no-match/error/cancel không tạo loop vô hạn; không có filesystem write.
 
 ### Phase 10 — Coding Agent
 
+Kế hoạch chi tiết: [Phase 10 — Coding Agent](Phase_10_Coding_Agent_Plan.md). Bám hướng AI CLI/terminal đã chọn; Phase 8 AI Chat đã bỏ. Nền tảng proposal/command có thể phát triển song song Phase 9, live CLI integration cần protocol và contracts run/evidence/cancel tương ứng.
+
 **Mục tiêu:** Read → Search → Patch → Review → Accept → Test với approval rõ ràng.
+
+**Trạng thái:** core 10.1–10.6 đã triển khai: backend proposal/apply theo ID, review giữ dirty draft, command proposal với Run/Cancel/timeout/output cap, Activity Log verification và MSI/NSIS packaging. CSP/clean-machine acceptance và live adapter của một CLI bên ngoài vẫn là acceptance riêng vì sản phẩm đã chọn AI CLI chạy trực tiếp trong terminal.
 
 **Task:**
 
-- [ ] **10.1 — Patch proposal:** tạo patch trong memory cùng snapshot/version; chưa ghi đĩa.
-- [ ] **10.2 — Review:** Diff Viewer và Accept/Reject; Reject không đổi filesystem.
-- [ ] **10.3 — Apply:** kiểm tra approval, workspace, path và snapshot trước khi ghi; chặn stale patch.
-- [ ] **10.4 — Run command:** proposal gồm executable, arguments, cwd; Run/Cancel, timeout và cleanup process.
-- [ ] **10.5 — Test loop:** chỉ chạy verify sau khi user chọn Run; không tự commit/push.
-- [ ] **10.6 — V1 verification:** release build, installer, môi trường thiếu Git/rg/PowerShell và giới hạn thực tế.
+- [x] **10.1 — Patch proposal:** Rust sở hữu proposal bất biến theo workspace/window, revision, digest, TTL và path/text validation; draft adapter gọi backend.
+- [x] **10.2 — Review:** Diff Viewer dùng proposal ID; Accept/Reject có lifecycle guard và Reject giữ draft thủ công.
+- [x] **10.3 — Apply:** backend exact Apply theo ID, revalidate revision/content, mutation lease và giữ edits phát sinh trong lúc apply.
+- [x] **10.4 — Run command:** allowlist executable/args/cwd, proposal trước Run, Cancel, timeout, output cap, process tree và workspace admission.
+- [x] **10.5 — Test loop:** Activity panel có prepare → review → Run/Cancel → bounded result; không tự commit/push; AI CLI vẫn chạy trực tiếp trong terminal.
+- [x] **10.6 — V1 packaging:** release executable, bundle icon, MSI và NSIS installer đã build pass; CSP review và clean-machine dependency matrix vẫn cần acceptance thủ công.
 
 **Nghiệm thu:** Reject không ghi; Accept chỉ áp dụng proposal đã duyệt; path traversal/stale patch bị chặn; Cancel không chạy command; process được cleanup.
+
+Checkpoints thực tế: C1 proposal/review/apply, C2 command lifecycle, C3 verification UI và C4 packaging đã pass automated gates. C3 live CLI adapter không được thêm vì terminal là integration boundary đã chọn; CSP/clean-machine/native click-through vẫn là bước nghiệm thu thủ công. Checklist phân biệt core runtime với acceptance native/release.
 
 ## 5. Quy trình thực hiện mỗi task
 
@@ -363,7 +372,7 @@ Không chuyển phase chỉ vì code đã được viết. Native feature phải
 
 ## 6. Trạng thái hiện tại và bước tiếp theo
 
-Phase hiện tại: **Phase 5 — Editor core đã triển khai; native click-through đang chờ. Phase 4 native smoke/state-retention và Phase 3 native smoke vẫn là gate độc lập.**
+Phase hiện tại: **Phase 6 — Git và Phase 7 — UX đã triển khai core; native acceptance và Task 7.5 dogfooding đang chờ. Native Phase 3/4/5 vẫn là gate độc lập. Phase 9 đã triển khai nền tảng 9.1–9.3 và local Activity Log; 9.4/9.5b cùng native acceptance còn pending.**
 
 | Hạng mục | Trạng thái |
 | --- | --- |
@@ -383,6 +392,8 @@ Phase 4 đã triển khai state contract, switch ba tools, full collapse/reopen,
 Phase 5 đã triển khai File API, Monaco/model registry, tabs/save/dirty guards và Shared Diff Viewer. `npm run build`, `cargo fmt --check`, `cargo test` (19/19), `cargo clippy -D warnings`, `npm run tauri -- dev` startup và `npm run tauri -- build --no-bundle` đã pass; native Editor/layout click-through còn pending.
 
 Phase 6 đã có [plan Git](Phase_6_Git_Plan.md) và [contracts/checklist](../../docs/phase-6-git-preview.md); core implementation và automated Git test evidence đã có. Native acceptance vẫn là gate riêng và không được suy ra từ build/test.
+
+Phase 7 có core shortcuts/layout/persistence/restore và Git transition guard theo [UX preview](../../docs/phase-7-ux-preview.md); native matrix và Task 7.5 còn chờ. Phase 9 đã triển khai Search service, Search UI/Editor navigation, read-only registry 9.1–9.3 và local Activity Log 9.5a; actual results và ma trận còn thiếu ghi tại [Phase 9 Preview](../../docs/phase-9-read-only-agent-preview.md). Bước tiếp theo là CLI adapter/agent loop, native Search/Activity acceptance và tool evidence UI.
 
 ```powershell
 cargo check --manifest-path src-tauri/Cargo.toml
