@@ -79,29 +79,22 @@ button {
 
 .brand-mark {
   display: flex;
-  align-items: end;
-  gap: 4px;
-  width: 19px;
-  height: 25px;
+  align-items: center;
+  justify-content: center;
+  width: 29px;
+  height: 29px;
+  overflow: hidden;
+  border: 1px solid rgba(145, 225, 195, 0.28);
+  border-radius: 9px;
+  background: #111c2d;
+  box-shadow: 0 0 14px rgba(52, 111, 184, 0.18);
 }
 
-.brand-slash {
+.brand-mark img {
   display: block;
-  width: 7px;
-  border-radius: 5px;
-  transform: rotate(28deg);
-}
-
-.brand-slash-primary {
-  height: 23px;
-  background: #91e1c3;
-  box-shadow: 0 0 14px rgba(145, 225, 195, 0.24);
-}
-
-.brand-slash-muted {
-  height: 15px;
-  opacity: 0.5;
-  background: #91e1c3;
+  width: 27px;
+  height: 27px;
+  object-fit: contain;
 }
 
 .app-title-group {
@@ -3735,18 +3728,19 @@ button {
 
 :root[data-theme="light"] {
   color-scheme: light;
-  --light-bg: #f3f6f8;
+  --light-bg: #eef2f4;
   --light-surface: #ffffff;
-  --light-surface-raised: #f7fafc;
-  --light-surface-muted: #edf2f5;
-  --light-border: #d7e0e8;
-  --light-border-strong: #c3d0da;
-  --light-text: #273541;
-  --light-text-strong: #17232e;
-  --light-text-muted: #6d7b89;
+  --light-surface-raised: #f7f9fa;
+  --light-surface-muted: #e8eef1;
+  --light-border: #d2dce2;
+  --light-border-strong: #b9c8d1;
+  --light-text: #2b3b48;
+  --light-text-strong: #172733;
+  --light-text-muted: #607281;
   --light-accent: #087f66;
-  --light-accent-soft: #e4f4ee;
-  --light-danger: #b24c5b;
+  --light-accent-soft: #e2f3ed;
+  --light-accent-border: #a8d7c5;
+  --light-danger: #b44758;
 }
 
 :root[data-theme="light"] body {
@@ -3925,7 +3919,7 @@ button {
 }
 
 :root[data-theme="light"] .terminal-xterm-host {
-  background: #f8fbfd;
+  background: #fbfcfd;
 }
 
 :root[data-theme="light"] .right-panel {
@@ -3941,7 +3935,7 @@ button {
 }
 
 :root[data-theme="light"] .rail-tool {
-  color: #8a99a8;
+  color: #748794;
 }
 
 :root[data-theme="light"] .rail-tool-active {
@@ -3962,7 +3956,7 @@ button {
 }
 
 :root[data-theme="light"] .editor-tab-active {
-  border-color: var(--light-border);
+  border-color: var(--light-border-strong);
   background: var(--light-surface);
 }
 
@@ -4072,7 +4066,7 @@ button {
 }
 
 :root[data-theme="light"] .monaco-editor-host {
-  background: #f8fbfd;
+  background: #ffffff;
 }
 
 @media (max-width: 1020px) {

@@ -477,7 +477,28 @@ export const TerminalPane = forwardRef<TerminalPaneHandle, TerminalPaneProps>(fu
 
 function terminalTheme(theme: UiTheme) {
   return theme === "light"
-    ? { background: "#f8fbfd", foreground: "#25313d", cursor: "#087f66", selectionBackground: "#cceee2" }
+    ? {
+        background: "#fbfcfd",
+        foreground: "#263746",
+        cursor: "#087f66",
+        selectionBackground: "#bfe9d9",
+        black: "#263746",
+        red: "#b44758",
+        green: "#087f66",
+        yellow: "#9a6700",
+        blue: "#3569a8",
+        magenta: "#87549b",
+        cyan: "#167d87",
+        white: "#e7edf0",
+        brightBlack: "#607281",
+        brightRed: "#c85a6a",
+        brightGreen: "#15977b",
+        brightYellow: "#b17b12",
+        brightBlue: "#4e80bf",
+        brightMagenta: "#a16bb5",
+        brightCyan: "#2496a0",
+        brightWhite: "#ffffff",
+      }
     : { background: "#0d1117", foreground: "#d4dce7", cursor: "#91e1c3", selectionBackground: "#24433b" };
 }
 

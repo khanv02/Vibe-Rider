@@ -59,6 +59,9 @@ npm run tauri -- dev
 # Build native executable, không tạo installer
 npm run tauri -- build --no-bundle
 
+# Build native executable and copy a quick-launch version to project root
+npm run build:portable
+
 # Rust checks
 cargo fmt --check --manifest-path src-tauri/Cargo.toml
 cargo check --manifest-path src-tauri/Cargo.toml --offline
@@ -70,6 +73,25 @@ Native executable sau khi build nằm tại:
 ```text
 src-tauri/target/release/vibe-rider.exe
 ```
+
+The quick-launch copy is also placed at the project root:
+
+```text
+vibe-rider.exe
+```
+
+This is a build artifact and is ignored by Git. Use `npm run build:portable` to rebuild and copy it again.
+
+## Portable mode
+
+Release executable dùng thư mục dữ liệu cạnh chính nó:
+
+```text
+vibe-rider.exe
+.vibe-rider-data/
+```
+
+Preferences, workspace memory, WebView data và runtime data được lưu trong `.vibe-rider-data/`. Muốn di chuyển app sang máy khác, copy cả executable và thư mục dữ liệu này. Đặt app trong thư mục người dùng có quyền ghi, không đặt trong `C:\Program Files` nếu muốn dùng portable mode.
 
 ## Mô hình an toàn
 

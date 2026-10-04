@@ -518,7 +518,7 @@ function StartupScreen() {
       <div className="startup-card">
         <div className="startup-chrome"><span>...</span></div>
         <div className="startup-content">
-          <img alt="Cheerful Vibe Rider chibi mascot" className="startup-character" src="/assets/loading-characters/character-3.png" />
+          <img alt="Cheerful Oguri Cap chibi mascot" className="startup-character" src="/assets/vibe-rider-splash-oguri-smile.png" />
           <h1>Vibe Rider</h1>
           <p>&gt; initializing workspace...</p>
         </div>

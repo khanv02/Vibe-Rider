@@ -1,7 +1,10 @@
 node_modules/
 dist/
 src-tauri/target/
+**/target-portable/
 src-tauri/.runtime-data/
+vibe-rider.exe
+vibe-rider-logo.png
 *.log
 .DS_Store
 
@@ -21,6 +24,7 @@ dist-form-audit/
 Thumbs.db
 
 # Closed roadmap documentation and retired Activity implementation
+docs/project-preview.md
 agents/plans/*Phase_9*.md
 agents/plans/*Phase_10*.md
 agents/plans/*phase-9*.md

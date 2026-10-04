@@ -99,8 +99,7 @@ export function AppLayout({
     <main className="app-shell">
       <header className="app-header">
         <div className="brand-mark" aria-hidden="true">
-          <span className="brand-slash brand-slash-primary" />
-          <span className="brand-slash brand-slash-muted" />
+          <img alt="" src="/assets/vibe-rider-horse-logo.png" />
         </div>
         <div className="app-title-group">
           <h1>Vibe Rider</h1>

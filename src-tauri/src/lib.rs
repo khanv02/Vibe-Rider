@@ -43,11 +43,19 @@ fn ping() -> String {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    #[cfg(debug_assertions)]
     let mut context = tauri::generate_context!();
 
     #[cfg(not(debug_assertions))]
-    let context = tauri::generate_context!();
+    {
+        if let Ok(executable) = std::env::current_exe() {
+            if let Some(directory) = executable.parent() {
+                let portable_data_dir = directory.join(".vibe-rider-data");
+                context.config_mut().app.app_directories_override = Some(
+                    tauri::utils::config::AppDirectoriesOverride::Root(portable_data_dir),
+                );
+            }
+        }
+    }
 
     #[cfg(debug_assertions)]
     {
