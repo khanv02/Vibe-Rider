@@ -27,19 +27,9 @@ Workspace → Terminal → Explorer → Editor → Search → Git → UX ổn đ
 - Cải thiện performance hoặc accessibility khi có bằng chứng từ sử dụng thực tế.
 - Packaging và clean-machine verification khi chuẩn bị phát hành.
 
-## Những phase đã đóng
+## Phase 8 — GitHub Account & API Authentication
 
-### Phase 9 — Read-only Agent
-
-Đã đóng. Search, Search UI và read-only filesystem/Git tools được giữ như IDE core. Không tiếp tục agent loop, provider, CLI adapter, evidence UI, Activity Log, checkpoint, trash hoặc session history.
-
-### Phase 10 — Coding Agent
-
-Đã đóng. Không tiếp tục AI coding-agent, live CLI integration, AI chat/provider hoặc workflow tự động Read → Patch → Accept → Test. Các primitive patch review, approval boundary và verification command chỉ được giữ nếu chúng vẫn hữu ích cho IDE thông thường.
-
-### Phase 11
-
-Không tồn tại trong roadmap hiện hành.
+Đã triển khai lõi Phase 8. Phase 8 thêm GitHub OAuth/API account thật cho desktop local app: Login, Change account, Logout local, profile/avatar và secure token storage. Native click-through vẫn cần Client ID và tài khoản test để nghiệm thu. Xem [Phase 8 GitHub Auth Plan](Phase_8_GitHub_Auth_Plan.md) và [Phase 8 Preview](../../docs/phase-8-github-auth-preview.md).
 
 ## Nguyên tắc
 

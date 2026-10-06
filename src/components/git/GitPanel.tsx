@@ -7,8 +7,10 @@ import type { WorkspaceGitController } from "../../git/useWorkspaceGit";
 import { gitFileTone } from "../../git/statusTone";
 import { SharedDiffViewer } from "../common/SharedDiffViewer";
 import type { UiTheme } from "../../preferences/types";
+import type { WorkspaceGitHubAuthController } from "../../githubAuth/types";
 
 interface GitPanelProps {
+  auth: WorkspaceGitHubAuthController;
   theme: UiTheme;
   controller: WorkspaceGitController;
   expanded: boolean;
@@ -25,6 +27,7 @@ interface UpstreamTarget {
 }
 
 type GitGroupsLayout = "stacked" | "columns";
+type GitSelectionGroup = "staged" | "changes" | "untracked";
 type GitContextAction = "addBranch" | "open" | "unstage" | "stage" | "review" | "select" | "unselect";
 
 interface GitContextMenuState {
@@ -32,6 +35,11 @@ interface GitContextMenuState {
   y: number;
   entry: GitStatusEntry;
   scope: "staged" | "unstaged";
+  group: GitSelectionGroup;
+}
+
+function selectionKey(group: GitSelectionGroup, entryId: string): string {
+  return `${group}\u0000${entryId}`;
 }
 
 function parseUpstream(value: string | null): UpstreamTarget | null {
@@ -53,7 +61,7 @@ function canUnstageEntry(entry: GitStatusEntry): boolean {
   return !entry.conflict && entry.staged;
 }
 
-export function GitPanel({ theme, controller, expanded, onExpandedChange, onOpenFile, pendingFilePaths, workspace }: GitPanelProps) {
+export function GitPanel({ auth, theme, controller, expanded, onExpandedChange, onOpenFile, pendingFilePaths, workspace }: GitPanelProps) {
   const [groupsLayout, setGroupsLayout] = useState<GitGroupsLayout>("stacked");
   const [newBranchName, setNewBranchName] = useState("");
   const [contextMenu, setContextMenu] = useState<GitContextMenuState | null>(null);
@@ -78,7 +86,7 @@ export function GitPanel({ theme, controller, expanded, onExpandedChange, onOpen
     };
   }, [contextMenu]);
 
-  function openGitContextMenu(event: MouseEvent, entry: GitStatusEntry, scope: "staged" | "unstaged") {
+  function openGitContextMenu(event: MouseEvent, entry: GitStatusEntry, scope: "staged" | "unstaged", group: GitSelectionGroup) {
     event.preventDefault();
     event.stopPropagation();
     const menuWidth = 184;
@@ -88,6 +96,7 @@ export function GitPanel({ theme, controller, expanded, onExpandedChange, onOpen
       y: Math.min(event.clientY, Math.max(8, window.innerHeight - menuHeight - 8)),
       entry,
       scope,
+      group,
     });
   }
 
@@ -117,10 +126,10 @@ export function GitPanel({ theme, controller, expanded, onExpandedChange, onOpen
         void controller.review(target.entry, target.scope);
         return;
       case "select":
-        if (!controller.selectedIds.includes(target.entry.entryId)) controller.toggleSelected(target.entry.entryId);
+        if (!controller.selectedKeys.includes(selectionKey(target.group, target.entry.entryId))) controller.toggleSelected(target.entry.entryId, selectionKey(target.group, target.entry.entryId));
         return;
       case "unselect":
-        if (controller.selectedIds.includes(target.entry.entryId)) controller.toggleSelected(target.entry.entryId);
+        if (controller.selectedKeys.includes(selectionKey(target.group, target.entry.entryId))) controller.toggleSelected(target.entry.entryId, selectionKey(target.group, target.entry.entryId));
         return;
     }
   }
@@ -141,6 +150,17 @@ export function GitPanel({ theme, controller, expanded, onExpandedChange, onOpen
         <h3>Git actions are unavailable in browser preview</h3>
         <p>Open the app through Tauri so Rust can read the repository and run Stage, Commit, Restore and Push.</p>
         <code>npm run tauri -- dev</code>
+      </div>
+    );
+  }
+
+  if (!auth.session) {
+    return (
+      <div className="tool-placeholder">
+        <div className="tool-placeholder-icon" aria-hidden="true">⌘</div>
+        <h3>GitHub sign-in required</h3>
+        <p>Sign in to GitHub to inspect or change this workspace with Git.</p>
+        <button className="primary-button" onClick={() => void auth.begin()} type="button">Login with GitHub</button>
       </div>
     );
   }
@@ -191,17 +211,12 @@ export function GitPanel({ theme, controller, expanded, onExpandedChange, onOpen
         <div className="git-summary-actions">
           <div className="editor-size-controls" aria-label="Git panel size">
             <button
-              aria-pressed={!expanded}
-              className={!expanded ? "size-button size-button-active" : "size-button"}
-              onClick={() => onExpandedChange("normal")}
-              type="button"
-            >Normal</button>
-            <button
               aria-pressed={expanded}
-              className={expanded ? "size-button size-button-active" : "size-button"}
-              onClick={() => onExpandedChange("expanded")}
+              className="size-button size-button-active"
+              onClick={() => onExpandedChange(expanded ? "normal" : "expanded")}
+              title={expanded ? "Thu nhỏ Git panel" : "Mở rộng Git panel"}
               type="button"
-            >Expanded</button>
+            >{expanded ? "Collapse" : "Expand"}</button>
           </div>
           <button className="editor-quiet-button" disabled={controller.loading || controller.busy} onClick={() => void controller.refresh()} type="button">Refresh</button>
         </div>
@@ -354,13 +369,13 @@ export function GitPanel({ theme, controller, expanded, onExpandedChange, onOpen
               </div>
               <div className="git-layout-options" aria-label="Changes layout">
                 <button aria-pressed={groupsLayout === "stacked"} className={groupsLayout === "stacked" ? "size-button size-button-active" : "size-button"} onClick={() => setGroupsLayout("stacked")} type="button">List</button>
-                <button aria-pressed={groupsLayout === "columns"} className={groupsLayout === "columns" ? "size-button size-button-active" : "size-button"} onClick={() => setGroupsLayout("columns")} type="button">3 columns</button>
+                <button aria-pressed={groupsLayout === "columns"} className={groupsLayout === "columns" ? "size-button size-button-active" : "size-button"} onClick={() => { setGroupsLayout("columns"); onExpandedChange("expanded"); }} type="button">3 columns</button>
               </div>
             </div>
             <div className={`git-groups${groupsLayout === "columns" ? " git-groups-columns" : ""}`}>
-              <GitGroup controller={controller} entries={staged} label="Staged Changes" onContextMenu={openGitContextMenu} onOpenFile={onOpenFile} pendingFilePaths={pendingFilePaths} scope="staged" empty="No staged changes" />
-              <GitGroup controller={controller} entries={changes} label="Changes" onContextMenu={openGitContextMenu} onOpenFile={onOpenFile} pendingFilePaths={pendingFilePaths} scope="unstaged" empty="No unstaged changes" />
-              <GitGroup controller={controller} entries={untracked} label="Untracked" onContextMenu={openGitContextMenu} onOpenFile={onOpenFile} pendingFilePaths={pendingFilePaths} scope="unstaged" empty="No untracked files" />
+              <GitGroup controller={controller} entries={staged} group="staged" label="Staged Changes" onContextMenu={openGitContextMenu} onOpenFile={onOpenFile} pendingFilePaths={pendingFilePaths} scope="staged" empty="No staged changes" />
+              <GitGroup controller={controller} entries={changes} group="changes" label="Changes" onContextMenu={openGitContextMenu} onOpenFile={onOpenFile} pendingFilePaths={pendingFilePaths} scope="unstaged" empty="No unstaged changes" />
+              <GitGroup controller={controller} entries={untracked} group="untracked" label="Untracked" onContextMenu={openGitContextMenu} onOpenFile={onOpenFile} pendingFilePaths={pendingFilePaths} scope="unstaged" empty="No untracked files" />
             </div>
           </section>
 
@@ -396,7 +411,7 @@ export function GitPanel({ theme, controller, expanded, onExpandedChange, onOpen
             <div className="git-account-details">
               <div><span>Commit email</span><code>{status.identity.email ?? "Not configured"}</code></div>
               <div><span>Remote</span><code>{status.remote?.host ?? "Not detected"}</code></div>
-              <div><span>Authentication</span><code>{controller.authVerified ? "Verified after successful Push" : "Checked when Push runs"}</code></div>
+              <div><span>Git remote access</span><code>{controller.authVerified ? "Verified after successful Push" : "Checked when Push runs"}</code></div>
             </div>
           </details>
         </>
@@ -428,10 +443,10 @@ export function GitPanel({ theme, controller, expanded, onExpandedChange, onOpen
             <span aria-hidden="true">⌕</span> Review
           </button>
           <div className="explorer-context-divider" />
-          <button disabled={controller.selectedIds.includes(contextMenu.entry.entryId)} onClick={() => handleContextAction("select")} role="menuitem" type="button">
+          <button disabled={controller.selectedKeys.includes(selectionKey(contextMenu.group, contextMenu.entry.entryId))} onClick={() => handleContextAction("select")} role="menuitem" type="button">
             <span aria-hidden="true">✓</span> Select
           </button>
-          <button disabled={!controller.selectedIds.includes(contextMenu.entry.entryId)} onClick={() => handleContextAction("unselect")} role="menuitem" type="button">
+          <button disabled={!controller.selectedKeys.includes(selectionKey(contextMenu.group, contextMenu.entry.entryId))} onClick={() => handleContextAction("unselect")} role="menuitem" type="button">
             <span aria-hidden="true">−</span> Unselect
           </button>
         </div>
@@ -443,6 +458,7 @@ export function GitPanel({ theme, controller, expanded, onExpandedChange, onOpen
 function GitGroup({
   controller,
   entries,
+  group,
   label,
   onContextMenu,
   onOpenFile,
@@ -452,8 +468,9 @@ function GitGroup({
 }: {
   controller: WorkspaceGitController;
   entries: GitStatusEntry[];
+  group: GitSelectionGroup;
   label: string;
-  onContextMenu: (event: MouseEvent, entry: GitStatusEntry, scope: "staged" | "unstaged") => void;
+  onContextMenu: (event: MouseEvent, entry: GitStatusEntry, scope: "staged" | "unstaged", group: GitSelectionGroup) => void;
   onOpenFile: (relativePath: string) => void;
   pendingFilePaths: string[];
   scope: "staged" | "unstaged";
@@ -468,10 +485,10 @@ function GitGroup({
             <button
               className="editor-quiet-button git-group-action"
               disabled={controller.busy}
-              onClick={() => controller.toggleEntriesSelected(entries.map((entry) => entry.entryId))}
+              onClick={() => controller.toggleEntriesSelected(entries.map((entry) => entry.entryId), entries.map((entry) => selectionKey(group, entry.entryId)))}
               type="button"
             >
-              {entries.every((entry) => controller.selectedIds.includes(entry.entryId)) ? "Unselect all" : "Select all"}
+              {entries.every((entry) => controller.selectedKeys.includes(selectionKey(group, entry.entryId))) ? "Unselect all" : "Select all"}
             </button>
             {scope === "staged" ? (
               <button className="editor-quiet-button git-group-action" disabled={controller.busy || !entries.some(canUnstageEntry)} onClick={() => void controller.unstageEntries(entries.filter(canUnstageEntry).map((entry) => entry.entryId))} type="button">Unstage all</button>
@@ -483,9 +500,9 @@ function GitGroup({
       </div>
       <div className="git-entry-list" id={`git-group-${label}`}>
         {entries.length === 0 ? <span className="git-empty">{empty}</span> : entries.map((entry) => (
-          <div className={`git-entry git-entry-${gitFileTone(entry)}${pendingFilePaths.includes(entry.currentPath) ? " git-entry-pending" : ""}`} key={`${scope}-${entry.entryId}`} onContextMenu={(event) => onContextMenu(event, entry, scope)}>
+          <div className={`git-entry git-entry-${gitFileTone(entry)}${pendingFilePaths.includes(entry.currentPath) ? " git-entry-pending" : ""}`} key={`${group}-${entry.entryId}`} onContextMenu={(event) => onContextMenu(event, entry, scope, group)}>
             <label className="git-entry-select">
-              <input checked={controller.selectedIds.includes(entry.entryId)} id={`git-entry-${scope}-${entry.entryId}`} name="gitSelectedEntries" onChange={() => controller.toggleSelected(entry.entryId)} type="checkbox" />
+              <input checked={controller.selectedKeys.includes(selectionKey(group, entry.entryId))} id={`git-entry-${group}-${entry.entryId}`} name={`gitSelectedEntries-${group}`} onChange={() => controller.toggleSelected(entry.entryId, selectionKey(group, entry.entryId))} type="checkbox" />
               <span className={`git-status-letter git-status-${entry.indexStatus === "?" ? "untracked" : entry.worktreeStatus !== " " ? entry.worktreeStatus : entry.indexStatus}`}>{entry.indexStatus === "?" ? "?" : scope === "staged" ? entry.indexStatus : entry.worktreeStatus}</span>
               <span className="git-entry-path" title={entry.originalPath ? `${entry.originalPath} → ${entry.currentPath}` : entry.currentPath}>{entry.originalPath ? `${entry.originalPath} → ${entry.currentPath}` : entry.currentPath}</span>
             </label>

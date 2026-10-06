@@ -185,7 +185,7 @@ React / TypeScript UI
 
 - Clone VS Code hoặc xây full-featured IDE.
 - Cạnh tranh với bất kỳ IDE/editor nào.
-- Cloud backend, authentication, collaboration hoặc account system riêng.
+- Cloud backend, collaboration hoặc account system riêng; Phase 8 chỉ thêm GitHub account local cho API profile.
 - AI chat provider, agent loop, session manager hay database cho hội thoại.
 - Full LSP, debugger, Docker orchestration hoặc plugin marketplace ngay trong V1.
 
@@ -206,6 +206,7 @@ Roadmap/preview chi tiết nằm trong thư mục [docs](docs/), đặc biệt:
 - [Phase 5 — Editor](docs/phase-5-editor-preview.md)
 - [Phase 6 — Git](docs/phase-6-git-preview.md)
 - [Phase 7 — UX](docs/phase-7-ux-preview.md)
+- [Phase 8 — GitHub Account & API Authentication](docs/phase-8-github-auth-preview.md)
 
 ## Bắt đầu sử dụng
 
@@ -227,6 +228,17 @@ npm run tauri -- dev
 ```
 
 Sau khi ứng dụng mở, chọn **Open Folder** để chọn project local.
+
+### GitHub Login (Phase 8)
+
+Phase 8 dùng GitHub OAuth Device Flow. Tạo GitHub OAuth App và bật Device Flow, sau đó đặt public Client ID trong môi trường build/dev. Không cần và không được đặt Client Secret trong app:
+
+```powershell
+$env:GITHUB_OAUTH_CLIENT_ID = "your-github-oauth-client-id"
+npm run tauri -- dev
+```
+
+Token chỉ được lưu trong Windows Credential Manager; GitHub OAuth không thay thế SSH hoặc Git Credential Manager của Git.
 
 ### Lệnh phát triển
 

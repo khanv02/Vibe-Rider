@@ -16,7 +16,6 @@ export interface RightPanelController {
   closePanel: () => void;
   setPanelWidth: (width: number) => void;
   setEditorSize: (size: EditorPanelSize) => void;
-  toggleKeepExpandedOnSwitch: () => void;
   setPanelSide: (side: RightPanelSide) => void;
   hydrate: (state: RightPanelState) => void;
 }
@@ -31,7 +30,6 @@ export function useRightPanel(bodyWidth: number): RightPanelController {
       ...current,
       activeRightPanel: panel,
       rightPanelOpen: true,
-      editorSize: current.keepExpandedOnSwitch ? current.editorSize : "normal",
     }));
   }, []);
 
@@ -68,13 +66,6 @@ export function useRightPanel(bodyWidth: number): RightPanelController {
     });
   }, [bodyWidth]);
 
-  const toggleKeepExpandedOnSwitch = useCallback(() => {
-    setState((current) => ({
-      ...current,
-      keepExpandedOnSwitch: !current.keepExpandedOnSwitch,
-    }));
-  }, []);
-
   const setPanelSide = useCallback((side: RightPanelSide) => {
     setState((current) => current.side === side ? current : { ...current, side });
   }, []);
@@ -83,5 +74,5 @@ export function useRightPanel(bodyWidth: number): RightPanelController {
     setState(nextState);
   }, []);
 
-  return { state, geometry, selectPanel, togglePanel, closePanel, setPanelWidth, setEditorSize, toggleKeepExpandedOnSwitch, setPanelSide, hydrate };
+  return { state, geometry, selectPanel, togglePanel, closePanel, setPanelWidth, setEditorSize, setPanelSide, hydrate };
 }

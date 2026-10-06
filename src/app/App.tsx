@@ -19,6 +19,7 @@ import { RIGHT_PANEL_DEFAULT_STATE } from "../panels/panelLayout";
 import type { TerminalWorkspaceHandle } from "../components/terminal/TerminalWorkspace";
 import { cancelGitOperation, listGitOperations, waitForGitIdle } from "../git/gitApi";
 import { useWorkspaceGit } from "../git/useWorkspaceGit";
+import { useGitHubAuth } from "../githubAuth/useGitHubAuth";
 import { hasTauriWindowMetadata, isTauriRuntime } from "../tauri/runtime";
 import { useWorkspaceSearch } from "../search/useWorkspaceSearch";
 import type { SearchMatch } from "../search/types";
@@ -57,7 +58,8 @@ function App() {
   const rightPanel = useRightPanel(bodyWidth);
   const editor = useWorkspaceEditor(workspace);
   const search = useWorkspaceSearch(workspace);
-  const git = useWorkspaceGit(workspace, editor.prepareWorkspaceChange, editor.captureFileOperation, editor.completeFileOperation);
+  const githubAuth = useGitHubAuth(Boolean(workspace));
+  const git = useWorkspaceGit(workspace, Boolean(githubAuth.session), editor.prepareWorkspaceChange, editor.captureFileOperation, editor.completeFileOperation);
   closeModeRef.current = closeMode;
 
   useEffect(() => {
@@ -100,7 +102,7 @@ function App() {
           rightPanelWidth: next.panel.normalWidth,
           editorSize: next.panel.editorSize,
           editorExpandedWidth: next.panel.expandedWidth,
-          keepExpandedOnSwitch: next.panel.keepExpandedOnSwitch,
+          keepExpandedOnSwitch: true,
           side: next.panel.side,
         });
         setPreferencesError(snapshot.warning);
@@ -149,9 +151,10 @@ function App() {
       setWorkspaceError(formatWorkspaceError(error));
       return false;
     }
-    if (operations.length === 0) return true;
+    const mutations = operations.filter((item) => item.mutation);
+    if (mutations.length === 0) return true;
 
-    const summary = operations.map((item) => item.operation).join(", ");
+    const summary = mutations.map((item) => item.operation).join(", ");
     const shouldWait = window.confirm(
       `Git operation đang chạy (${summary}).\n\nOK = chờ hoàn tất; Cancel = yêu cầu huỷ và giữ workspace hiện tại nếu chưa kết thúc.`,
     );
@@ -162,7 +165,7 @@ function App() {
     }
 
     try {
-      await Promise.all(operations.map((item) => cancelGitOperation(currentWorkspace.id, item.operationId)));
+      await Promise.all(mutations.map((item) => cancelGitOperation(currentWorkspace.id, item.operationId)));
       const idle = await waitForGitIdle(currentWorkspace.id);
       if (!idle) setWorkspaceError("Đã yêu cầu huỷ Git nhưng process chưa được reap.");
       return idle;
@@ -184,7 +187,7 @@ function App() {
     }
     if (!workspace) return false;
     try {
-      return (await listGitOperations(workspace.id)).length > 0;
+      return (await listGitOperations(workspace.id)).some((operation) => operation.mutation);
     } catch {
       return false;
     }
@@ -402,12 +405,11 @@ function App() {
           <RightPanel
             activePanel={rightPanel.state.activeRightPanel}
             git={git}
+            githubAuth={githubAuth}
             gitEntries={git.status?.entries ?? []}
             editorSize={rightPanel.state.editorSize}
-            keepExpandedOnSwitch={rightPanel.state.keepExpandedOnSwitch}
             explorer={explorer}
             onEditorSizeChange={rightPanel.setEditorSize}
-            onToggleKeepExpandedOnSwitch={rightPanel.toggleKeepExpandedOnSwitch}
             onDeleteEntry={deleteExplorerEntry}
             onOpenWorkspace={chooseWorkspace}
             onOpenFile={openFile}
@@ -424,8 +426,6 @@ function App() {
       editorWorkspace={
         <EditorWorkspace
           controller={editor}
-          editorSize={rightPanel.state.editorSize}
-          onEditorSizeChange={rightPanel.setEditorSize}
           onOpenFile={openDroppedFile}
           theme={theme}
         />

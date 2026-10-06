@@ -80,8 +80,8 @@ export async function waitForGitIdle(
   const pollMs = options.pollMs ?? 120;
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
-    if ((await listGitOperations(workspaceId)).length === 0) return true;
+    if ((await listGitOperations(workspaceId)).every((operation) => !operation.mutation)) return true;
     await new Promise<void>((resolve) => window.setTimeout(resolve, pollMs));
   }
-  return (await listGitOperations(workspaceId)).length === 0;
+  return (await listGitOperations(workspaceId)).every((operation) => !operation.mutation);
 }

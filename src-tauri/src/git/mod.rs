@@ -18,6 +18,7 @@ use std::time::{Duration, Instant};
 use serde::{Deserialize, Serialize};
 use tauri::{State, WebviewWindow};
 
+use crate::github_auth::GitHubAuthService;
 use crate::workspace::{WorkspaceError, WorkspaceState};
 #[cfg(windows)]
 use windows::ProcessTree;
@@ -65,6 +66,25 @@ impl GitError {
 impl From<WorkspaceError> for GitError {
     fn from(error: WorkspaceError) -> Self {
         Self::new(&error.code, "workspace", error.message)
+    }
+}
+
+fn require_github_auth(
+    auth: &State<'_, GitHubAuthService>,
+    operation: &str,
+) -> Result<(), GitError> {
+    match auth.has_authenticated_session() {
+        Ok(true) => Ok(()),
+        Ok(false) => Err(GitError::new(
+            "GITHUB_LOGIN_REQUIRED",
+            operation,
+            "Sign in to GitHub before using Git.",
+        )),
+        Err(_) => Err(GitError::new(
+            "GITHUB_AUTH_UNAVAILABLE",
+            operation,
+            "The GitHub session could not be verified.",
+        )),
     }
 }
 
@@ -145,7 +165,7 @@ impl GitService {
         })?;
         if operations
             .values()
-            .any(|control| control.workspace_id == workspace_id)
+            .any(|control| control.workspace_id == workspace_id && control.mutation)
         {
             return Err(GitError::new(
                 "GIT_BUSY",
@@ -315,9 +335,11 @@ pub struct GitCancelRequest {
 pub async fn git_repository(
     service: State<'_, GitService>,
     state: State<'_, WorkspaceState>,
+    auth: State<'_, GitHubAuthService>,
     window: WebviewWindow,
     request: GitWorkspaceRequest,
 ) -> Result<repository::GitRepository, GitError> {
+    require_github_auth(&auth, "repository")?;
     let snapshot = state
         .active_snapshot()?
         .ok_or_else(|| GitError::new("NO_WORKSPACE", "repository", "Hãy mở workspace trước."))?;
@@ -328,12 +350,10 @@ pub async fn git_repository(
             "Workspace đã thay đổi.",
         ));
     }
-    let workspace_lease = state.begin_mutation(&snapshot.id).map_err(GitError::from)?;
     let service = service.inner().clone();
     let lease = service.begin(window.label(), &snapshot.id, "repository", false)?;
     let workspace_id = snapshot.id.clone();
     let result = tauri::async_runtime::spawn_blocking(move || {
-        let _workspace_lease = workspace_lease;
         let runner = service.runner(&snapshot.root)?;
         repository::inspect(&snapshot.id, &snapshot.root, &runner, &lease.control)
     })

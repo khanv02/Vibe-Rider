@@ -5,6 +5,7 @@ use tauri::{State, WebviewWindow};
 use crate::file_editor::{read_file_from_disk, TextFileSnapshot};
 use crate::filesystem::{list_directory, DirectoryListing};
 use crate::git::{git_diff, git_status, GitDiffRequest, GitService, GitStatusRequest};
+use crate::github_auth::GitHubAuthService;
 use crate::path_guard::resolve_regular_file;
 use crate::search::{SearchResult, SearchService, SearchStartRequest};
 use crate::workspace::{WorkspaceError, WorkspaceState};
@@ -82,6 +83,7 @@ pub async fn read_only_tool(
     state: State<'_, WorkspaceState>,
     search: State<'_, SearchService>,
     git: State<'_, GitService>,
+    github_auth: State<'_, GitHubAuthService>,
     window: WebviewWindow,
     request: ReadOnlyToolRequest,
 ) -> Result<ReadOnlyToolResult, ToolError> {
@@ -155,6 +157,7 @@ pub async fn read_only_tool(
             let status = git_status(
                 git,
                 state,
+                github_auth,
                 window,
                 GitStatusRequest {
                     workspace_id: request.workspace_id.clone(),
@@ -174,6 +177,7 @@ pub async fn read_only_tool(
             let diff = git_diff(
                 git,
                 state,
+                github_auth,
                 window,
                 GitDiffRequest {
                     workspace_id: request.workspace_id.clone(),

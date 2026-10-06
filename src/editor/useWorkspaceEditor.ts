@@ -3,7 +3,7 @@ import * as monaco from "monaco-editor";
 import type { WorkspaceDescriptor } from "../workspace/types";
 import { formatEditorError, readFile, restoreFile, writeFile } from "./editorApi";
 import { applyPatch, proposePatch, rejectPatch } from "./patchApi";
-import { useEditorStore } from "./editorStore";
+import { EDITOR_PANE_IDS, useEditorStore, type EditorPaneId } from "./editorStore";
 import { configureMonaco, languageForPath, modelUri } from "./monacoRuntime";
 import { EditorModelRegistry } from "./modelRegistry";
 import type { DiffPreview, EditorLocation, EditorModelEntry, FileOperationKind, PatchProposal, PendingFileOperation, TextFileSnapshot } from "./types";
@@ -12,28 +12,32 @@ const MAX_OPEN_TABS = 20;
 const MAX_OPEN_TEXT_BYTES = 20 * 1024 * 1024;
 
 export interface WorkspaceEditorController {
-  tabs: ReturnType<typeof useEditorStore.getState>["tabs"];
+  tabs: ReturnType<typeof useEditorStore.getState>["panes"][EditorPaneId]["tabs"];
   activeFileId: string | null;
+  activePaneId: EditorPaneId;
+  getTabs: (paneId: EditorPaneId) => ReturnType<typeof useEditorStore.getState>["panes"][EditorPaneId]["tabs"];
+  getActiveFileId: (paneId: EditorPaneId) => string | null;
+  setActivePane: (paneId: EditorPaneId) => void;
   activeEntry: EditorModelEntry | null;
   getEntry: (fileId: string) => EditorModelEntry | null;
   diff: DiffPreview | null;
   proposal: PatchProposal | null;
   proposalError: string | null;
   navigation: EditorLocation | null;
-  openFile: (relativePath: string) => Promise<boolean>;
-  openFileAtLocation: (relativePath: string, line: number, column: number, endColumn?: number) => Promise<boolean>;
-  setActive: (fileId: string) => void;
+  openFile: (relativePath: string, paneId?: EditorPaneId) => Promise<boolean>;
+  openFileAtLocation: (relativePath: string, line: number, column: number, endColumn?: number, paneId?: EditorPaneId) => Promise<boolean>;
+  setActive: (fileId: string, paneId?: EditorPaneId) => void;
   updateDraft: (fileId: string, content: string) => void;
-  saveFile: (fileId?: string) => Promise<boolean>;
+  saveFile: (fileId?: string, paneId?: EditorPaneId) => Promise<boolean>;
   saveAll: () => Promise<boolean>;
-  closeFile: (fileId: string) => void;
+  closeFile: (fileId: string, paneId?: EditorPaneId) => void;
   hasDirty: () => boolean;
   prepareWorkspaceChange: () => Promise<boolean>;
-  showDiff: (fileId?: string) => Promise<void>;
+  showDiff: (fileId?: string, paneId?: EditorPaneId) => Promise<void>;
   acceptProposal: () => Promise<boolean>;
   rejectProposal: () => void;
-  compareWithDisk: (fileId?: string) => Promise<void>;
-  reloadFromDisk: (fileId?: string) => Promise<void>;
+  compareWithDisk: (fileId?: string, paneId?: EditorPaneId) => Promise<void>;
+  reloadFromDisk: (fileId?: string, paneId?: EditorPaneId) => Promise<void>;
   closeDiff: () => void;
   pendingFilePaths: string[];
   captureFileOperation: (relativePaths: string[], kind: FileOperationKind) => void;
@@ -62,8 +66,14 @@ interface FileUndoRecord extends PendingFileOperation {
 }
 
 export function useWorkspaceEditor(workspace: WorkspaceDescriptor | null): WorkspaceEditorController {
-  const tabs = useEditorStore((state) => state.tabs);
-  const activeFileId = useEditorStore((state) => state.activeFileId);
+  const tabs = useEditorStore((state) => state.panes[state.activePaneId].tabs);
+  const activeFileId = useEditorStore((state) => state.panes[state.activePaneId].activeFileId);
+  const activePaneId = useEditorStore((state) => state.activePaneId);
+  const panes = useEditorStore((state) => state.panes);
+  const getTabs = useCallback((paneId: EditorPaneId) => useEditorStore.getState().panes[paneId].tabs, []);
+  const getActiveFileId = useCallback((paneId: EditorPaneId) => useEditorStore.getState().panes[paneId].activeFileId, []);
+  const setActivePane = useCallback((paneId: EditorPaneId) => useEditorStore.getState().setActivePane(paneId), []);
+  const paneFor = useCallback((paneId?: EditorPaneId) => paneId ?? useEditorStore.getState().activePaneId, []);
   const registryRef = useRef(new EditorModelRegistry());
   const workspaceRef = useRef(workspace);
   const requestGeneration = useRef(0);
@@ -210,7 +220,7 @@ export function useWorkspaceEditor(workspace: WorkspaceDescriptor | null): Works
           try {
             const diskSnapshot = await readFile(currentWorkspace.id, entry.snapshot.relativePath);
             if (diskSnapshot.revision === entry.snapshot.revision) continue;
-            const tab = useEditorStore.getState().tabs.find((item) => item.fileId === fileId);
+            const tab = EDITOR_PANE_IDS.flatMap((paneId) => useEditorStore.getState().panes[paneId].tabs).find((item) => item.fileId === fileId);
             if (!tab) continue;
             if (tab.dirty || entry.model.getValue() !== entry.baseline) {
               useEditorStore.getState().setStatus(fileId, "conflict", "File trên disk đã thay đổi. Hãy Compare disk hoặc Reload disk trước khi lưu.");
@@ -221,7 +231,7 @@ export function useWorkspaceEditor(workspace: WorkspaceDescriptor | null): Works
             entry.model.setValue(diskSnapshot.content);
             useEditorStore.getState().setReady(fileId, !diskSnapshot.writable || diskSnapshot.eol === "mixed" || diskSnapshot.eol === "cr");
           } catch (error) {
-            const tab = useEditorStore.getState().tabs.find((item) => item.fileId === fileId);
+            const tab = EDITOR_PANE_IDS.flatMap((paneId) => useEditorStore.getState().panes[paneId].tabs).find((item) => item.fileId === fileId);
             if (tab && !tab.dirty) useEditorStore.getState().setStatus(fileId, "conflict", formatEditorError(error));
           }
         }
@@ -238,33 +248,34 @@ export function useWorkspaceEditor(workspace: WorkspaceDescriptor | null): Works
     };
   }, [forceRender, workspace?.id]);
 
-  const openFileInternal = useCallback(async (relativePath: string): Promise<boolean> => {
+  const openFileInternal = useCallback(async (relativePath: string, requestedPaneId?: EditorPaneId): Promise<boolean> => {
     const currentWorkspace = workspaceRef.current;
     if (!currentWorkspace) return false;
+    const paneId = paneFor(requestedPaneId);
     configureMonaco();
     const fileId = relativePath;
     const token = ++requestGeneration.current;
     const existing = registryRef.current.get(fileId);
     if (existing) {
-      useEditorStore.getState().setActive(fileId);
+      useEditorStore.getState().setActive(paneId, fileId);
       forceRender();
       return true;
     }
-    if (useEditorStore.getState().tabs.length >= MAX_OPEN_TABS) {
+    if (useEditorStore.getState().panes[paneId].tabs.length >= MAX_OPEN_TABS) {
       window.alert(`Editor hỗ trợ tối đa ${MAX_OPEN_TABS} tabs trong Phase 5.`);
       return false;
     }
-    useEditorStore.getState().upsertLoading(fileId, relativePath);
+    useEditorStore.getState().upsertLoading(paneId, fileId, relativePath);
     try {
       const snapshot = await readFile(currentWorkspace.id, relativePath);
       if (workspaceRef.current?.id !== currentWorkspace.id) return false;
       if (token !== requestGeneration.current) {
-        useEditorStore.getState().remove(fileId);
+        useEditorStore.getState().remove(paneId, fileId);
         return false;
       }
       const currentBytes = Array.from(registryRef.current.values()).reduce((total, entry) => total + entry.snapshot.byteLength, 0);
       if (currentBytes + snapshot.byteLength > MAX_OPEN_TEXT_BYTES) {
-        useEditorStore.getState().remove(fileId);
+        useEditorStore.getState().remove(paneId, fileId);
         window.alert("Tổng dung lượng Editor đã vượt giới hạn 20 MiB.");
         return false;
       }
@@ -275,26 +286,27 @@ export function useWorkspaceEditor(workspace: WorkspaceDescriptor | null): Works
       return true;
     } catch (error) {
       if (workspaceRef.current?.id === currentWorkspace.id && token !== requestGeneration.current) {
-        useEditorStore.getState().remove(fileId);
+        useEditorStore.getState().remove(paneId, fileId);
       } else if (token === requestGeneration.current) {
         useEditorStore.getState().setStatus(fileId, "error", formatEditorError(error));
       }
       forceRender();
       return false;
     }
-  }, [forceRender]);
+  }, [forceRender, paneFor]);
 
-  const openFile = useCallback(async (relativePath: string): Promise<boolean> => {
-    const opened = await openFileInternal(relativePath);
+  const openFile = useCallback(async (relativePath: string, paneId?: EditorPaneId): Promise<boolean> => {
+    const opened = await openFileInternal(relativePath, paneId);
     if (opened) recordFileNavigation(relativePath);
     return opened;
   }, [openFileInternal, recordFileNavigation]);
 
-  const setActive = useCallback((fileId: string) => {
-    useEditorStore.getState().setActive(fileId);
+  const setActive = useCallback((fileId: string, paneId?: EditorPaneId) => {
+    const targetPaneId = paneFor(paneId);
+    useEditorStore.getState().setActive(targetPaneId, fileId);
     const entry = registryRef.current.get(fileId);
     if (entry) recordFileNavigation(entry.snapshot.relativePath);
-  }, [recordFileNavigation]);
+  }, [paneFor, recordFileNavigation]);
 
   const goBack = useCallback(async (): Promise<boolean> => {
     const history = fileHistoryRef.current;
@@ -372,11 +384,12 @@ export function useWorkspaceEditor(workspace: WorkspaceDescriptor | null): Works
     if (entry) useEditorStore.getState().setDirty(fileId, content !== entry.baseline);
   }, []);
 
-  const saveFile = useCallback(async (fileId = useEditorStore.getState().activeFileId ?? undefined) => {
+  const saveFile = useCallback(async (fileId = useEditorStore.getState().panes[paneFor()].activeFileId ?? undefined, requestedPaneId?: EditorPaneId) => {
     const currentWorkspace = workspaceRef.current;
     if (!currentWorkspace || !fileId) return false;
+    const paneId = paneFor(requestedPaneId);
     const entry = registryRef.current.get(fileId);
-    const tab = useEditorStore.getState().tabs.find((item) => item.fileId === fileId);
+    const tab = useEditorStore.getState().panes[paneId].tabs.find((item) => item.fileId === fileId);
     if (!entry || !tab || tab.readOnly) return false;
     if (proposalRef.current?.fileId === fileId || applyingProposalRef.current) {
       setProposalError("Hãy Accept hoặc Reject proposal trước khi Save trực tiếp.");
@@ -405,28 +418,32 @@ export function useWorkspaceEditor(workspace: WorkspaceDescriptor | null): Works
     } finally {
       savingFilesRef.current.delete(fileId);
     }
-  }, [forceRender]);
+  }, [forceRender, paneFor]);
 
   const saveAll = useCallback(async () => {
-    for (const tab of useEditorStore.getState().tabs) {
-      if (tab.dirty && !(await saveFile(tab.fileId))) return false;
+    for (const paneId of EDITOR_PANE_IDS) {
+      for (const tab of useEditorStore.getState().panes[paneId].tabs) {
+        if (tab.dirty && !(await saveFile(tab.fileId, paneId))) return false;
+      }
     }
     return true;
   }, [saveFile]);
 
-  const closeFile = useCallback((fileId: string) => {
+  const closeFile = useCallback((fileId: string, requestedPaneId?: EditorPaneId) => {
+    const paneId = paneFor(requestedPaneId);
     if (proposalRef.current?.fileId === fileId) {
       proposalRef.current = null;
       setProposal(null);
       setProposalError(null);
       diffRef.current = null;
     }
-    registryRef.current.delete(fileId);
-    useEditorStore.getState().remove(fileId);
+    useEditorStore.getState().remove(paneId, fileId);
+    const stillOpen = EDITOR_PANE_IDS.some((candidate) => useEditorStore.getState().panes[candidate].tabs.some((tab) => tab.fileId === fileId));
+    if (!stillOpen) registryRef.current.delete(fileId);
     forceRender();
-  }, [forceRender]);
+  }, [forceRender, paneFor]);
 
-  const hasDirty = useCallback(() => useEditorStore.getState().tabs.some((tab) => tab.dirty), []);
+  const hasDirty = useCallback(() => EDITOR_PANE_IDS.some((paneId) => useEditorStore.getState().panes[paneId].tabs.some((tab) => tab.dirty)), []);
 
   const prepareWorkspaceChange = useCallback(async () => {
     if (!hasDirty()) return true;
@@ -434,7 +451,8 @@ export function useWorkspaceEditor(workspace: WorkspaceDescriptor | null): Works
     return shouldSave ? saveAll() : false;
   }, [hasDirty, saveAll]);
 
-  const showDiff = useCallback(async (fileId = useEditorStore.getState().activeFileId ?? undefined) => {
+  const showDiff = useCallback(async (fileId?: string, requestedPaneId?: EditorPaneId) => {
+    fileId = fileId ?? useEditorStore.getState().panes[paneFor(requestedPaneId)].activeFileId ?? undefined;
     if (!fileId) return;
     const entry = registryRef.current.get(fileId);
     if (!entry) return;
@@ -518,7 +536,7 @@ export function useWorkspaceEditor(workspace: WorkspaceDescriptor | null): Works
     const nextProposal = proposalRef.current;
     if (!currentWorkspace || !nextProposal) return false;
     const entry = registryRef.current.get(nextProposal.fileId);
-    const tab = useEditorStore.getState().tabs.find((item) => item.fileId === nextProposal.fileId);
+    const tab = EDITOR_PANE_IDS.flatMap((paneId) => useEditorStore.getState().panes[paneId].tabs).find((item) => item.fileId === nextProposal.fileId);
     const staleMessage = "Proposal đã stale. Workspace, file hoặc nội dung đã thay đổi; hãy Reject và tạo proposal mới.";
     if (
       currentWorkspace.id !== nextProposal.workspaceId
@@ -584,7 +602,8 @@ export function useWorkspaceEditor(workspace: WorkspaceDescriptor | null): Works
     void rejectPatch(nextProposal.workspaceId, nextProposal.proposalId).catch(() => undefined);
   }, [forceRender]);
 
-  const compareWithDisk = useCallback(async (fileId = useEditorStore.getState().activeFileId ?? undefined) => {
+  const compareWithDisk = useCallback(async (fileId?: string, requestedPaneId?: EditorPaneId) => {
+    fileId = fileId ?? useEditorStore.getState().panes[paneFor(requestedPaneId)].activeFileId ?? undefined;
     const currentWorkspace = workspaceRef.current;
     if (!currentWorkspace || !fileId) return;
     const entry = registryRef.current.get(fileId);
@@ -607,7 +626,8 @@ export function useWorkspaceEditor(workspace: WorkspaceDescriptor | null): Works
     }
   }, [forceRender]);
 
-  const reloadFromDisk = useCallback(async (fileId = useEditorStore.getState().activeFileId ?? undefined) => {
+  const reloadFromDisk = useCallback(async (fileId?: string, requestedPaneId?: EditorPaneId) => {
+    fileId = fileId ?? useEditorStore.getState().panes[paneFor(requestedPaneId)].activeFileId ?? undefined;
     const currentWorkspace = workspaceRef.current;
     if (!currentWorkspace || !fileId) return;
     const entry = registryRef.current.get(fileId);
@@ -640,6 +660,10 @@ export function useWorkspaceEditor(workspace: WorkspaceDescriptor | null): Works
   return {
     tabs,
     activeFileId,
+    activePaneId,
+    getTabs,
+    getActiveFileId,
+    setActivePane,
     activeEntry,
     getEntry,
     diff: diffRef.current,

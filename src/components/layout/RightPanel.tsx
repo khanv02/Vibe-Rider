@@ -6,6 +6,8 @@ import { GitPanel } from "../git/GitPanel";
 import type { DirectoryEntry } from "../../workspace/types";
 import type { WorkspaceGitController } from "../../git/useWorkspaceGit";
 import { GitAccountBadge } from "../git/GitAccountBadge";
+import { GitHubAuthDialog } from "../git/GitHubAuthDialog";
+import type { WorkspaceGitHubAuthController } from "../../githubAuth/types";
 import type { WorkspaceSearchController } from "../../search/useWorkspaceSearch";
 import type { SearchMatch } from "../../search/types";
 import type { GitStatusEntry } from "../../git/types";
@@ -15,12 +17,11 @@ interface RightPanelProps {
   theme: UiTheme;
   activePanel: RightPanelId;
   editorSize: EditorPanelSize;
-  keepExpandedOnSwitch: boolean;
   explorer: WorkspaceExplorerController;
   git: WorkspaceGitController;
+  githubAuth: WorkspaceGitHubAuthController;
   gitEntries: GitStatusEntry[];
   onEditorSizeChange: (size: EditorPanelSize) => void;
-  onToggleKeepExpandedOnSwitch: () => void;
   onOpenWorkspace: () => void;
   onDeleteEntry: (relativePath: string) => Promise<void>;
   onOpenFile: (entry: DirectoryEntry) => void;
@@ -42,12 +43,11 @@ export function RightPanel({
   theme,
   activePanel,
   editorSize,
-  keepExpandedOnSwitch,
   git,
+  githubAuth,
   gitEntries,
   explorer,
   onEditorSizeChange,
-  onToggleKeepExpandedOnSwitch,
   onOpenWorkspace,
   onDeleteEntry,
   onOpenFile,
@@ -91,18 +91,19 @@ export function RightPanel({
         </div>
         <div className="rail-footer">
           <GitAccountBadge
-            authVerified={git.authVerified}
-            identity={git.status?.identity ?? null}
+            auth={githubAuth}
             remote={git.status?.remote ?? null}
+            workspaceAvailable={Boolean(workspace)}
           />
         </div>
       </nav>
 
       <div className="right-panel-views">
         <section className="tool-panel tool-view" hidden={activePanel !== "git"} aria-labelledby="git-panel-title">
-          <ToolHeading badge={editorSize === "expanded" ? "EXPANDED" : "NORMAL"} id="git-panel-title" keepExpandedOnSwitch={keepExpandedOnSwitch} onToggleKeepExpandedOnSwitch={onToggleKeepExpandedOnSwitch} title="Git" />
+          <ToolHeading id="git-panel-title" title="Git" />
           <div className="tool-panel-content">
             <GitPanel
+              auth={githubAuth}
               theme={theme}
               controller={git}
               expanded={editorSize === "expanded"}
@@ -115,7 +116,7 @@ export function RightPanel({
         </section>
 
         <section className="tool-panel tool-view" hidden={activePanel !== "explorer"} aria-labelledby="explorer-panel-title">
-          <ToolHeading badge="PHASE 1" id="explorer-panel-title" keepExpandedOnSwitch={keepExpandedOnSwitch} onToggleKeepExpandedOnSwitch={onToggleKeepExpandedOnSwitch} title="Explorer" />
+          <ToolHeading id="explorer-panel-title" title="Explorer" />
           <div className="tool-panel-content">
             {workspace ? (
               <ExplorerPanel explorer={explorer} gitEntries={gitEntries} onDeleteEntry={onDeleteEntry} onOpenFile={onOpenFile} onOpenSearchResult={onOpenSearchResult} onOpenWorkspace={onOpenWorkspace} pendingFilePaths={pendingFilePaths} search={search} workspace={workspace} />
@@ -132,28 +133,17 @@ export function RightPanel({
         </section>
 
       </div>
+      <GitHubAuthDialog controller={githubAuth} />
     </aside>
   );
 }
 
-function ToolHeading({ badge, id, keepExpandedOnSwitch, onToggleKeepExpandedOnSwitch, title }: { badge: string; id: string; keepExpandedOnSwitch: boolean; onToggleKeepExpandedOnSwitch: () => void; title: string }) {
+function ToolHeading({ id, title }: { id: string; title: string }) {
   return (
     <header className="tool-panel-heading">
       <div>
         <p className="panel-kicker">SUPPORTING TOOL</p>
         <h2 id={id} tabIndex={-1}>{title}</h2>
-      </div>
-      <div className="tool-panel-heading-actions">
-        <button
-          aria-pressed={keepExpandedOnSwitch}
-          className={keepExpandedOnSwitch ? "size-button size-button-active" : "size-button"}
-          onClick={onToggleKeepExpandedOnSwitch}
-          title="Giữ Expanded khi chuyển giữa các panel"
-          type="button"
-        >
-          Keep Expanded
-        </button>
-        <span className="default-badge">{badge}</span>
       </div>
     </header>
   );

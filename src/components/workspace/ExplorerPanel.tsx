@@ -169,7 +169,6 @@ export function ExplorerPanel({ explorer, gitEntries, onDeleteEntry, onOpenFile,
       </div>
 
       <div className="explorer-files-toolbar">
-        <span className="explorer-files-label">Files</span>
         <WorkspaceSearch compact controller={search} onOpenResult={onOpenSearchResult} onOpenSuggestion={openSearchSuggestion} />
       </div>
 

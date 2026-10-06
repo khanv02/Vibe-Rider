@@ -24,15 +24,9 @@ dist-form-audit/
 # Windows metadata
 Thumbs.db
 
-# Closed roadmap documentation and retired Activity implementation
+# Retired Activity implementation
 docs/project-preview.md
-agents/plans/*Phase_9*.md
-agents/plans/*Phase_10*.md
-agents/plans/*phase-9*.md
-agents/plans/*phase-10*.md
 agents/plans/*Activity*.md
-docs/*phase-9*.md
-docs/*phase-10*.md
 docs/*activity*.md
 src-tauri/src/activity.rs
 src/activity/

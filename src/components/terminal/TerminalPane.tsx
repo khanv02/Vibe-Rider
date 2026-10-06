@@ -139,6 +139,8 @@ export const TerminalPane = forwardRef<TerminalPaneHandle, TerminalPaneProps>(fu
 
     const inputDisposable = terminal.onData((data) => queueInput(data));
     let imagePasteInFlight = false;
+    let clipboardPasteAttempt = 0;
+    let handledClipboardPasteAttempt = -1;
 
     async function readClipboardImage(): Promise<{ blob: Blob; mimeType: string } | null> {
       if (!navigator.clipboard?.read) return null;
@@ -151,15 +153,23 @@ export const TerminalPane = forwardRef<TerminalPaneHandle, TerminalPaneProps>(fu
       return null;
     }
 
-    async function pasteImage(blob: Blob, mimeType: string) {
+    async function pasteImage(
+      image?: { blob: Blob; mimeType: string },
+      reportErrors = true,
+    ) {
       const targetSession = sessionRef.current;
       const targetWorkspace = workspaceRef.current;
       if (!targetSession || !targetWorkspace || imagePasteInFlight) return;
       imagePasteInFlight = true;
       const operation = operationRef.current;
       try {
-        const bytes = new Uint8Array(await blob.arrayBuffer());
-        const saved = await saveClipboardImage(targetWorkspace.id, mimeType, bytes);
+        const clipboardImage = image ?? await readClipboardImage();
+        if (!clipboardImage) {
+          if (reportErrors) setError("Cannot read an image from the clipboard.");
+          return;
+        }
+        const bytes = new Uint8Array(await clipboardImage.blob.arrayBuffer());
+        const saved = await saveClipboardImage(targetWorkspace.id, clipboardImage.mimeType, bytes);
         if (
           operation !== operationRef.current
           || sessionRef.current?.sessionId !== targetSession.sessionId
@@ -172,7 +182,7 @@ export const TerminalPane = forwardRef<TerminalPaneHandle, TerminalPaneProps>(fu
           operation,
         );
       } catch (pasteError: unknown) {
-        if (operation === operationRef.current) {
+        if (reportErrors && operation === operationRef.current) {
           setError(`Cannot paste clipboard image: ${formatTerminalError(pasteError)}`);
         }
       } finally {
@@ -191,37 +201,30 @@ export const TerminalPane = forwardRef<TerminalPaneHandle, TerminalPaneProps>(fu
         || /<img[\s>]|data:image\//i.test(html);
       if (!hasImageHint) return;
 
+      handledClipboardPasteAttempt = clipboardPasteAttempt;
       event.preventDefault();
       event.stopPropagation();
       const image = imageItem?.getAsFile();
       if (image) {
-        void pasteImage(image, image.type || imageItem?.type || "image/png");
+        void pasteImage({ blob: image, mimeType: image.type || imageItem?.type || "image/png" });
         return;
       }
-      void readClipboardImage()
-        .then((clipboardImage) => {
-          if (clipboardImage) void pasteImage(clipboardImage.blob, clipboardImage.mimeType);
-          else setError("Cannot read an image from the clipboard.");
-        })
-        .catch((pasteError: unknown) => {
-          setError(`Cannot read clipboard image: ${formatTerminalError(pasteError)}`);
-        });
+      void pasteImage();
     };
     hostRef.current.addEventListener("paste", pasteHandler, true);
-    terminal.textarea?.addEventListener("paste", pasteHandler, true);
     terminal.attachCustomKeyEventHandler((event) => {
       if (
         event.type === "keydown"
         && (event.ctrlKey || event.metaKey)
         && event.key.toLowerCase() === "v"
       ) {
+        const pasteAttempt = ++clipboardPasteAttempt;
         window.setTimeout(() => {
-          if (imagePasteInFlight) return;
-          void readClipboardImage()
-            .then((clipboardImage) => {
-              if (clipboardImage) void pasteImage(clipboardImage.blob, clipboardImage.mimeType);
-            })
-            .catch(() => undefined);
+          if (
+            imagePasteInFlight
+            || handledClipboardPasteAttempt === pasteAttempt
+          ) return;
+          void pasteImage(undefined, false);
         }, 0);
       }
       return true;
@@ -260,7 +263,6 @@ export const TerminalPane = forwardRef<TerminalPaneHandle, TerminalPaneProps>(fu
       if (resizeFrameRef.current !== null) cancelAnimationFrame(resizeFrameRef.current);
       inputDisposable.dispose();
       hostRef.current?.removeEventListener("paste", pasteHandler, true);
-      terminal.textarea?.removeEventListener("paste", pasteHandler, true);
       terminal.dispose();
       terminalRef.current = null;
       writeInputRef.current = () => undefined;

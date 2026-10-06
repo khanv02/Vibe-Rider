@@ -1260,22 +1260,33 @@ Goal:
 
 ---
 
-## PHASE 9–10 — CLOSED
+## PHASE 8 — GITHUB ACCOUNT & API AUTHENTICATION
 
-Các phase Agent trước đây đã được đóng. Search, read-only filesystem/Git tools, diff review và verification command chỉ được giữ như thành phần IDE core hiện có.
+Phase hiện tại tiếp theo là kết nối GitHub account thật vào desktop local app, không mở rộng thành AI agent hoặc cloud IDE.
 
-Không triển khai thêm:
+Feature:
 
 ```text
-AI chat/provider
-LLM agent loop
-CLI adapter
-Activity Log
-checkpoint/trash/session history
-live coding-agent workflow
+GitHub OAuth Device Flow
+GitHub REST API profile
+Secure OS token store
+Login / Change account / Logout local
+Username và avatar thật
 ```
 
-Terminal vẫn là nơi người dùng chạy AI CLI native nếu cần; Vibe Rider không quản lý hội thoại hoặc session của CLI.
+Boundary:
+
+```text
+Rust giữ token và gọi GitHub API
+React chỉ nhận public profile DTO
+Không lưu token trong preferences/localStorage/log
+Không nhúng client secret vào executable
+GitHub OAuth không thay thế SSH/Git Credential Manager
+Repository chỉ hiện khi GitHub session đã verify
+MCP không thuộc phase này
+```
+
+Phase 8 không thêm cloud backend, AI chat, agent loop, CLI adapter, Activity Log hoặc session/history system. Terminal vẫn là nơi người dùng chạy AI CLI native nếu cần; Vibe Rider không quản lý hội thoại hoặc session của CLI.
 
 ---
 

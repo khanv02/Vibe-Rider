@@ -27,6 +27,7 @@ export interface WorkspaceGitController {
   status: GitStatus | null;
   diff: GitDiffSnapshot | null;
   selectedIds: string[];
+  selectedKeys: string[];
   busy: boolean;
   operation: GitOperationInfo | null;
   loading: boolean;
@@ -35,8 +36,8 @@ export interface WorkspaceGitController {
   commitMessage: string;
   setCommitMessage: (message: string) => void;
   refresh: () => Promise<void>;
-  toggleSelected: (entryId: string) => void;
-  toggleEntriesSelected: (entryIds: string[]) => void;
+  toggleSelected: (entryId: string, selectionKey?: string) => void;
+  toggleEntriesSelected: (entryIds: string[], selectionKeys?: string[]) => void;
   clearSelection: () => void;
   review: (entry: GitStatusEntry, scope: "staged" | "unstaged") => Promise<void>;
   closeDiff: () => void;
@@ -53,12 +54,19 @@ export interface WorkspaceGitController {
   dismissFeedback: () => void;
 }
 
+function entryIdFromSelectionKey(selectionKey: string): string {
+  const separator = selectionKey.indexOf("\u0000");
+  return separator === -1 ? selectionKey : selectionKey.slice(separator + 1);
+}
+
 function feedbackFrom(reason: unknown, operation: string): GitFeedback {
   const error = typeof reason === "object" && reason !== null
     ? reason as Partial<GitError>
     : {};
   const code = typeof error.code === "string" ? error.code : "GIT_FAILED";
   const messages: Record<string, string> = {
+    GITHUB_LOGIN_REQUIRED: "Sign in to GitHub before using Git.",
+    GITHUB_AUTH_UNAVAILABLE: "The GitHub session could not be verified. Try signing in again.",
     NO_WORKSPACE: "Open a workspace before using Git.",
     STALE_WORKSPACE: "The workspace changed while Git was running.",
     GIT_NOT_FOUND: "Git was not found in PATH. Install Git and restart the app.",
@@ -101,6 +109,7 @@ function feedbackFrom(reason: unknown, operation: string): GitFeedback {
 
 export function useWorkspaceGit(
   workspace: WorkspaceDescriptor | null,
+  authenticated: boolean,
   prepareRestore?: () => Promise<boolean>,
   captureFileOperation?: (relativePaths: string[], kind: "delete" | "restore") => void,
   completeFileOperation?: (success: boolean) => void,
@@ -117,13 +126,15 @@ export function useWorkspaceGit(
   const requestNumber = useRef(0);
   const refreshPromise = useRef<Promise<void> | null>(null);
   const workspaceRef = useRef(workspace);
+  const authenticatedRef = useRef(authenticated);
   const statusRef = useRef<GitStatus | null>(status);
   workspaceRef.current = workspace;
+  authenticatedRef.current = authenticated;
   statusRef.current = status;
 
   const refresh = useCallback(async () => {
     const current = workspaceRef.current;
-    if (!current || !isTauriRuntime()) {
+    if (!current || !authenticatedRef.current || !isTauriRuntime()) {
       setStatus(null);
       statusRef.current = null;
       return;
@@ -136,7 +147,7 @@ export function useWorkspaceGit(
         if (workspaceRef.current?.id !== current.id || next.requestId !== requestId) return;
         statusRef.current = next;
         setStatus(next);
-        setSelected((previous) => new Set([...previous].filter((id) => next.entries.some((entry) => entry.entryId === id))));
+        setSelected((previous) => new Set([...previous].filter((key) => next.entries.some((entry) => entry.entryId === entryIdFromSelectionKey(key)))));
       })
       .catch((reason) => {
         if (workspaceRef.current?.id === current.id) setFeedback(feedbackFrom(reason, "status"));
@@ -156,7 +167,7 @@ export function useWorkspaceGit(
     setCommitMessage("");
     setFeedback(null);
     setAuthVerified(false);
-    if (!workspace) return;
+    if (!workspace || !authenticated) return;
     void refresh();
     const timer = window.setInterval(() => void refresh(), 3000);
     const onFocus = () => void refresh();
@@ -165,7 +176,7 @@ export function useWorkspaceGit(
       window.clearInterval(timer);
       window.removeEventListener("focus", onFocus);
     };
-  }, [refresh, workspace?.id]);
+  }, [authenticated, refresh, workspace?.id]);
 
   useEffect(() => {
     if (!busy || !workspace || !isTauriRuntime()) {
@@ -189,22 +200,22 @@ export function useWorkspaceGit(
     };
   }, [busy, workspace]);
 
-  const toggleSelected = useCallback((entryId: string) => {
+  const toggleSelected = useCallback((entryId: string, selectionKey = entryId) => {
     setSelected((previous) => {
       const next = new Set(previous);
-      if (next.has(entryId)) next.delete(entryId);
-      else next.add(entryId);
+      if (next.has(selectionKey)) next.delete(selectionKey);
+      else next.add(selectionKey);
       return next;
     });
   }, []);
 
-  const toggleEntriesSelected = useCallback((entryIds: string[]) => {
+  const toggleEntriesSelected = useCallback((entryIds: string[], selectionKeys = entryIds) => {
     setSelected((previous) => {
       const next = new Set(previous);
-      const allSelected = entryIds.length > 0 && entryIds.every((entryId) => next.has(entryId));
-      entryIds.forEach((entryId) => {
-        if (allSelected) next.delete(entryId);
-        else next.add(entryId);
+      const allSelected = selectionKeys.length > 0 && selectionKeys.every((selectionKey) => next.has(selectionKey));
+      selectionKeys.forEach((selectionKey) => {
+        if (allSelected) next.delete(selectionKey);
+        else next.add(selectionKey);
       });
       return next;
     });
@@ -212,6 +223,10 @@ export function useWorkspaceGit(
 
   const runMutation = useCallback(async (task: () => Promise<unknown>, operation: string) => {
     if (busy) return false;
+    if (!authenticatedRef.current) {
+      setFeedback(feedbackFrom({ code: "GITHUB_LOGIN_REQUIRED", operation }, operation));
+      return false;
+    }
     setBusy(true);
     setOperation(null);
     setFeedback({ kind: "info", code: "RUNNING", operation, message: `${operation} is running…`, guidance: null });
@@ -230,7 +245,8 @@ export function useWorkspaceGit(
     }
   }, [busy, refresh]);
 
-  const selectedIds = useMemo(() => [...selected], [selected]);
+  const selectedKeys = useMemo(() => [...selected], [selected]);
+  const selectedIds = useMemo(() => [...new Set(selectedKeys.map(entryIdFromSelectionKey))], [selectedKeys]);
   const selectedEntries = useMemo(
     () => status?.entries.filter((entry) => selected.has(entry.entryId)) ?? [],
     [selected, status],
@@ -247,7 +263,7 @@ export function useWorkspaceGit(
   }, [runMutation, status, workspace]);
 
   const review = useCallback(async (entry: GitStatusEntry, scope: "staged" | "unstaged") => {
-    if (!status || !workspace) return;
+    if (!status || !workspace || !authenticatedRef.current) return;
     try {
       setDiff(await getGitDiff(workspace.id, entry.entryId, scope, status.statusToken));
     } catch (reason) {
@@ -321,9 +337,10 @@ export function useWorkspaceGit(
   }, [operation, workspace]);
 
   return {
-    status,
-    diff,
+    status: authenticated ? status : null,
+    diff: authenticated ? diff : null,
     selectedIds,
+    selectedKeys,
     busy,
     operation,
     loading,

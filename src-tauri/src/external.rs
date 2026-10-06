@@ -6,6 +6,7 @@ fn allowed_github_url(url: &str) -> bool {
         "https://github.com"
             | "https://github.com/"
             | "https://github.com/login"
+            | "https://github.com/login/device"
             | "https://github.com/logout"
             | "https://github.com/settings/profile"
     )
@@ -38,7 +39,7 @@ fn allowed_external_url(url: &str) -> bool {
 #[tauri::command]
 pub fn open_external_url(url: String) -> Result<(), String> {
     if !allowed_external_url(&url) {
-        return Err("Chỉ được mở URL GitHub đã được cho phép.".to_string());
+        return Err("Only approved GitHub URLs can be opened.".to_string());
     }
 
     #[cfg(windows)]
@@ -54,7 +55,7 @@ pub fn open_external_url(url: String) -> Result<(), String> {
 
     result
         .map(|_| ())
-        .map_err(|error| format!("Không thể mở browser mặc định: {error}"))
+        .map_err(|error| format!("Could not open the default browser: {error}"))
 }
 
 #[cfg(test)]
@@ -64,6 +65,7 @@ mod tests {
     #[test]
     fn external_url_allowlist_rejects_arbitrary_hosts() {
         assert!(allowed_github_url("https://github.com/login"));
+        assert!(allowed_github_url("https://github.com/login/device"));
         assert!(allowed_repository_url("https://github.com/openai/codex"));
         assert!(allowed_repository_url("https://gitlab.com/group/project"));
         assert!(!allowed_github_url("https://example.com"));

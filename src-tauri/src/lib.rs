@@ -6,10 +6,13 @@ mod external;
 mod file_editor;
 mod filesystem;
 mod git;
+mod github_api;
+mod github_auth;
 mod patches;
 mod path_guard;
 mod preferences;
 mod search;
+mod secure_store;
 mod terminal;
 mod tools;
 mod workspace;
@@ -21,6 +24,10 @@ use filesystem::{create_entry, delete_entry, move_entry, read_directory, save_cl
 use git::{
     git_add, git_cancel, git_commit, git_create_branch, git_diff, git_operations, git_push,
     git_repository, git_restore, git_status, git_switch_branch, GitService,
+};
+use github_auth::{
+    github_auth_begin, github_auth_cancel, github_auth_logout, github_auth_poll,
+    github_auth_session, GitHubAuthService,
 };
 use patches::{patch_apply, patch_propose, patch_reject, PatchService};
 use preferences::{
@@ -73,6 +80,7 @@ pub fn run() {
         .manage(SearchService::default())
         .manage(TerminalManager::default())
         .manage(GitService::default())
+        .manage(GitHubAuthService::default())
         .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
             ping,
@@ -112,6 +120,11 @@ pub fn run() {
             git_switch_branch,
             git_operations,
             git_cancel,
+            github_auth_begin,
+            github_auth_poll,
+            github_auth_cancel,
+            github_auth_session,
+            github_auth_logout,
             terminal_spawn,
             terminal_close,
             terminal_list,

@@ -10,8 +10,9 @@ use tauri::{State, WebviewWindow};
 
 use super::{
     process::{GitOutput, GitRunner, Limits},
-    repository, status, GitError, GitService,
+    repository, require_github_auth, status, GitError, GitService,
 };
+use crate::github_auth::GitHubAuthService;
 use crate::workspace::{WorkspaceSnapshot, WorkspaceState};
 
 const MAX_DIFF_BYTES: usize = 2 * 1024 * 1024;
@@ -120,19 +121,17 @@ struct Context {
 pub async fn git_status(
     service: State<'_, GitService>,
     state: State<'_, WorkspaceState>,
+    auth: State<'_, GitHubAuthService>,
     window: WebviewWindow,
     request: GitStatusRequest,
 ) -> Result<status::GitStatus, GitError> {
+    require_github_auth(&auth, "status")?;
     let workspace = active_workspace(state.inner(), &request.workspace_id)?;
     let service = service.inner().clone();
-    let workspace_lease = state
-        .begin_mutation(&workspace.id)
-        .map_err(GitError::from)?;
     let lease = service.begin(window.label(), &workspace.id, "status", false)?;
     let workspace_id = workspace.id.clone();
     let request_id = request.request_id.clone();
     let result = tauri::async_runtime::spawn_blocking(move || {
-        let _workspace_lease = workspace_lease;
         let _lease = lease;
         let runner = service.runner(&workspace.root)?;
         let repository =
@@ -163,18 +162,16 @@ pub async fn git_status(
 pub async fn git_diff(
     service: State<'_, GitService>,
     state: State<'_, WorkspaceState>,
+    auth: State<'_, GitHubAuthService>,
     window: WebviewWindow,
     request: GitDiffRequest,
 ) -> Result<GitDiffSnapshot, GitError> {
+    require_github_auth(&auth, "diff")?;
     let workspace = active_workspace(state.inner(), &request.workspace_id)?;
     let service = service.inner().clone();
-    let workspace_lease = state
-        .begin_mutation(&workspace.id)
-        .map_err(GitError::from)?;
     let lease = service.begin(window.label(), &workspace.id, "diff", false)?;
     let workspace_id = workspace.id.clone();
     let result = tauri::async_runtime::spawn_blocking(move || {
-        let _workspace_lease = workspace_lease;
         let _lease = lease;
         let runner = service.runner(&workspace.root)?;
         let context = fresh_context(&workspace, &runner, &_lease.control, None)?;
@@ -215,9 +212,11 @@ pub async fn git_diff(
 pub async fn git_add(
     service: State<'_, GitService>,
     state: State<'_, WorkspaceState>,
+    auth: State<'_, GitHubAuthService>,
     window: WebviewWindow,
     request: GitEntriesRequest,
 ) -> Result<GitMutationResult, GitError> {
+    require_github_auth(&auth, "add")?;
     mutate_entries(
         service,
         state,
@@ -251,9 +250,11 @@ pub async fn git_add(
 pub async fn git_restore(
     service: State<'_, GitService>,
     state: State<'_, WorkspaceState>,
+    auth: State<'_, GitHubAuthService>,
     window: WebviewWindow,
     request: GitRestoreRequest,
 ) -> Result<GitMutationResult, GitError> {
+    require_github_auth(&auth, "restore")?;
     let mode = request.mode.clone();
     let selections = request.selections.clone();
     let workspace = active_workspace(state.inner(), &request.workspace_id)?;
@@ -348,9 +349,11 @@ pub async fn git_restore(
 pub async fn git_commit(
     service: State<'_, GitService>,
     state: State<'_, WorkspaceState>,
+    auth: State<'_, GitHubAuthService>,
     window: WebviewWindow,
     request: GitCommitRequest,
 ) -> Result<GitMutationResult, GitError> {
+    require_github_auth(&auth, "commit")?;
     let workspace = active_workspace(state.inner(), &request.workspace_id)?;
     if request.message.trim().is_empty()
         || request.message.len() > MAX_COMMIT_MESSAGE_BYTES
@@ -452,9 +455,11 @@ pub async fn git_commit(
 pub async fn git_push(
     service: State<'_, GitService>,
     state: State<'_, WorkspaceState>,
+    auth: State<'_, GitHubAuthService>,
     window: WebviewWindow,
     request: GitPushRequest,
 ) -> Result<GitMutationResult, GitError> {
+    require_github_auth(&auth, "push")?;
     let workspace = active_workspace(state.inner(), &request.workspace_id)?;
     let workspace_id = workspace.id.clone();
     let service = service.inner().clone();
@@ -528,9 +533,11 @@ pub async fn git_push(
 pub async fn git_create_branch(
     service: State<'_, GitService>,
     state: State<'_, WorkspaceState>,
+    auth: State<'_, GitHubAuthService>,
     window: WebviewWindow,
     request: GitBranchRequest,
 ) -> Result<GitMutationResult, GitError> {
+    require_github_auth(&auth, "branch-create")?;
     change_branch(service, state, window, request, true).await
 }
 
@@ -538,9 +545,11 @@ pub async fn git_create_branch(
 pub async fn git_switch_branch(
     service: State<'_, GitService>,
     state: State<'_, WorkspaceState>,
+    auth: State<'_, GitHubAuthService>,
     window: WebviewWindow,
     request: GitBranchRequest,
 ) -> Result<GitMutationResult, GitError> {
+    require_github_auth(&auth, "branch-switch")?;
     change_branch(service, state, window, request, false).await
 }
 

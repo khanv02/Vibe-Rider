@@ -1,34 +1,36 @@
 import { useEffect, useRef, useState } from "react";
-import type { GitIdentity, GitRemoteInfo } from "../../git/types";
+import { createPortal } from "react-dom";
+import type { GitRemoteInfo } from "../../git/types";
 import { openExternalUrl } from "../../git/accountApi";
+import type { WorkspaceGitHubAuthController } from "../../githubAuth/types";
 
 interface GitAccountBadgeProps {
-  identity: GitIdentity | null;
+  auth: WorkspaceGitHubAuthController;
   remote: GitRemoteInfo | null;
-  authVerified: boolean;
+  workspaceAvailable: boolean;
 }
 
-export function GitAccountBadge({ authVerified, identity, remote }: GitAccountBadgeProps) {
+export function GitAccountBadge({ auth, remote, workspaceAvailable }: GitAccountBadgeProps) {
   const [menuError, setMenuError] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [confirmAction, setConfirmAction] = useState<"change" | "logout" | null>(null);
   const popoverRef = useRef<HTMLDetailsElement>(null);
-  const username = githubUsername(identity?.email);
-  const isGitHub = remote?.provider === "github" || Boolean(username);
-  const isLoggedIn = authVerified;
-  const repositoryUrl = remote?.repositoryUrl ?? null;
+  const session = auth.session;
+  const repositoryUrl = session ? remote?.repositoryUrl ?? null : null;
+  const label = session ? `@${session.login}` : "Guest";
+  const isLoggedIn = Boolean(session);
 
   useEffect(() => {
     function closeOnOutsidePointer(event: PointerEvent) {
       const target = event.target;
-      if (target instanceof Node && !popoverRef.current?.contains(target)) {
+      if (target instanceof Node && !popoverRef.current?.contains(target)) setMenuOpen(false);
+    }
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") {
         setMenuOpen(false);
+        setConfirmAction(null);
       }
     }
-
-    function closeOnEscape(event: KeyboardEvent) {
-      if (event.key === "Escape") setMenuOpen(false);
-    }
-
     document.addEventListener("pointerdown", closeOnOutsidePointer);
     document.addEventListener("keydown", closeOnEscape);
     return () => {
@@ -37,66 +39,97 @@ export function GitAccountBadge({ authVerified, identity, remote }: GitAccountBa
     };
   }, []);
 
-  if (!identity && !remote) return null;
-
-  const label = username ? `@${username}` : identity?.name ?? "Git identity";
-  const initialsValue = username ?? identity?.name ?? identity?.email ?? "Git";
-  const avatarUrl = username ? `https://github.com/${encodeURIComponent(username)}.png?size=64` : null;
-
-  async function openAccountUrl(url: string) {
+  async function openRepository() {
+    if (!repositoryUrl) return;
     setMenuError(null);
     try {
-      await openExternalUrl(url);
+      await openExternalUrl(repositoryUrl);
     } catch (error) {
       setMenuError(error instanceof Error ? error.message : String(error));
     }
   }
 
+  async function login() {
+    setMenuError(null);
+    await auth.begin();
+  }
+
+  function requestConfirmation(action: "change" | "logout") {
+    setMenuError(null);
+    setMenuOpen(false);
+    setConfirmAction(action);
+  }
+
+  async function confirmAccountAction() {
+    const action = confirmAction;
+    setConfirmAction(null);
+    if (action === "change") await auth.begin();
+    if (action === "logout") await auth.logout();
+  }
+
   return (
-    <details className={`app-account-popover${authVerified ? " app-account-badge-verified" : ""}`} open={menuOpen} ref={popoverRef}>
+    <>
+      <details className={`app-account-popover${isLoggedIn ? " app-account-badge-verified" : ""}`} open={menuOpen} ref={popoverRef}>
       <summary
-        aria-label="Git account menu"
+        aria-label="GitHub account menu"
         className="app-account-trigger"
         onClick={(event) => {
           event.preventDefault();
           setMenuOpen((current) => !current);
         }}
-        title={isGitHub ? `${label} · GitHub account` : `${label} · Git identity`}
+        title={isLoggedIn ? `${label} · GitHub account` : "Login to GitHub"}
       >
-        <span className={`app-account-avatar${isGitHub ? " app-account-avatar-github" : ""}`}>
-          {initials(initialsValue)}
-          {avatarUrl ? <img alt="" onError={(event) => { event.currentTarget.hidden = true; }} src={avatarUrl} /> : null}
+        <span className={`app-account-avatar${isLoggedIn ? " app-account-avatar-github" : ""}`}>
+          {session?.avatarUrl ? <img alt="" onError={(event) => { event.currentTarget.hidden = true; }} src={session.avatarUrl} /> : <AccountPlaceholderIcon />}
         </span>
         <span className="app-account-copy">
-          <strong>{isGitHub ? label : "Git identity"}</strong>
-          <small>{remote?.repositoryUrl ? "Repository" : isGitHub ? "GitHub" : identity?.email ?? remote?.host ?? "Local"}</small>
+          <strong>{isLoggedIn ? label : "Login"}</strong>
+          <small>{repositoryUrl ? "Repository" : isLoggedIn ? "GitHub account" : "Sign in to use Git"}</small>
         </span>
       </summary>
       <div className="app-account-menu">
-        <div className="app-account-menu-heading"><strong>{label}</strong></div>
-        {repositoryUrl ? (
-          <button onClick={() => void openAccountUrl(repositoryUrl)} type="button">Repository</button>
-        ) : null}
+        <div className="app-account-menu-heading"><strong>{label}</strong>{!isLoggedIn ? <small>{workspaceAvailable ? "Sign in to enable Git for this workspace." : "Open a workspace folder before signing in."}</small> : null}</div>
+        {repositoryUrl ? <button onClick={() => void openRepository()} type="button">Repository</button> : null}
         {isLoggedIn ? (
-          <button onClick={() => void openAccountUrl("https://github.com/login")} type="button">Change account</button>
+          <>
+            <button disabled={!workspaceAvailable} onClick={() => requestConfirmation("change")} type="button">Change account</button>
+            <button className="app-account-logout" onClick={() => requestConfirmation("logout")} type="button">Logout</button>
+          </>
         ) : (
-          <button onClick={() => void openAccountUrl("https://github.com/login")} type="button">Login</button>
+          <button disabled={!workspaceAvailable} onClick={() => void login()} type="button">Login with GitHub</button>
         )}
-        <button className="app-account-logout" onClick={() => void openAccountUrl("https://github.com/logout")} type="button">Logout</button>
-        {menuError ? <span className="app-account-menu-error" role="alert">{menuError}</span> : null}
+        {auth.error || menuError ? <span className="app-account-menu-error" role="alert">{auth.error ?? menuError}</span> : null}
       </div>
-    </details>
+      </details>
+      {confirmAction ? createPortal(
+        <div className="editor-dialog-backdrop app-account-confirm-backdrop" role="presentation">
+          <section aria-describedby="account-confirm-description" aria-labelledby="account-confirm-title" aria-modal="true" className="editor-dialog app-account-confirm-dialog" role="dialog">
+            <p className="panel-kicker">GITHUB ACCOUNT</p>
+            <h3 id="account-confirm-title">{confirmAction === "logout" ? `Log out of ${label}?` : `Change account from ${label}?`}</h3>
+            <p id="account-confirm-description">
+              {confirmAction === "logout"
+                ? "This removes the GitHub session stored on this device. Git will be disabled for the workspace until you sign in again."
+                : `Your ${label} session stays connected until a different GitHub account is authorized successfully.`}
+            </p>
+            <div className="editor-dialog-actions">
+              <button autoFocus className="editor-quiet-button" onClick={() => setConfirmAction(null)} type="button">Cancel</button>
+              <button className={confirmAction === "logout" ? "editor-primary-button app-account-confirm-danger" : "editor-primary-button"} onClick={() => void confirmAccountAction()} type="button">
+                {confirmAction === "logout" ? "Logout" : "Continue"}
+              </button>
+            </div>
+          </section>
+        </div>,
+        document.body,
+      ) : null}
+    </>
   );
 }
 
-function githubUsername(email: string | null | undefined): string | null {
-  const match = email?.match(/^(?:\d+\+)?([^@]+)@users\.noreply\.github\.com$/i);
-  return match?.[1] ?? null;
-}
-
-function initials(value: string): string {
-  const parts = value.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return "G";
-  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
-  return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
+function AccountPlaceholderIcon() {
+  return (
+    <svg aria-hidden="true" className="app-account-placeholder-icon" viewBox="0 0 24 24">
+      <circle cx="12" cy="8" r="4" />
+      <path d="M4.5 20c.8-3.8 3.3-5.7 7.5-5.7s6.7 1.9 7.5 5.7" />
+    </svg>
+  );
 }
